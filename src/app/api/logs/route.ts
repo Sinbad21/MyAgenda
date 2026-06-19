@@ -23,7 +23,7 @@ const schema = z.object({
       triggerType: z.enum(['time', 'km']).default('time'),
       dueDate: z.string().nullable().optional(),
       dueTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
-      intervalMonths: z.number().int().positive().nullable().optional(),,
+      intervalMonths: z.number().int().positive().nullable().optional(),
       dueKm: z.number().int().positive().nullable().optional(),
       recurring: z.boolean().default(false),
       advanceDays: z.number().int().min(0).max(365).default(7),
