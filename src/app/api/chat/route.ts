@@ -4,8 +4,9 @@ import { getCurrentUser } from '@/lib/auth';
 import { interpretMessage } from '@/ai/assistant';
 import { executeActions } from '@/lib/chat-actions';
 import { listVehicles } from '@/lib/queries';
-import { EXPENSE_CATEGORIES } from '@/lib/categories';
+import { expenseCategoryNames } from '@/lib/categories';
 import { todayIso } from '@/lib/format';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -15,15 +16,19 @@ export async function POST(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
 
+  const { ok } = checkRateLimit(`chat:${user.id}`, { limit: 30, windowMs: 60_000 });
+  if (!ok) return NextResponse.json({ error: 'Troppi messaggi. Aspetta un momento.' }, { status: 429 });
+
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Messaggio non valido' }, { status: 400 });
 
   const vehicles = listVehicles(user.id).map((v) => ({ id: v.id, name: v.name, current_km: v.current_km }));
+  const expenseCategories = expenseCategoryNames(user.id) as any;
   const result = await interpretMessage(parsed.data.message, {
     todayIso: todayIso(),
     vehicles,
-    expenseCategories: EXPENSE_CATEGORIES,
+    expenseCategories,
   });
 
   if (result.needs_clarification || result.actions.length === 0) {

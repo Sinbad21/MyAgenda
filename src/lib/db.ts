@@ -131,11 +131,37 @@ CREATE TABLE IF NOT EXISTS notifications (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS expense_categories (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  icon TEXT NOT NULL DEFAULT '📦',
+  color TEXT,
+  is_default INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  UNIQUE (user_id, name),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS recurring_expenses (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  amount REAL NOT NULL,
+  category TEXT NOT NULL,
+  day_of_month INTEGER NOT NULL DEFAULT 1,
+  active INTEGER NOT NULL DEFAULT 1,
+  last_inserted TEXT,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id, event_date);
 CREATE INDEX IF NOT EXISTS idx_reminders_user ON reminders(user_id, status, due_date);
 CREATE INDEX IF NOT EXISTS idx_expenses_user ON expenses(user_id, date);
 CREATE INDEX IF NOT EXISTS idx_categories_user ON categories(user_id);
 CREATE INDEX IF NOT EXISTS idx_shares_email ON shares(shared_with_email);
+CREATE INDEX IF NOT EXISTS idx_expense_categories_user ON expense_categories(user_id);
 `;
 
 let _db: Database.Database | null = null;
@@ -160,6 +186,14 @@ export function getDb(): Database.Database {
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA);
+
+  // Migrations: add columns that may not exist in older DBs
+  const migrateCol = (table: string, col: string, def: string) => {
+    try {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+    } catch { /* already exists */ }
+  };
+  migrateCol('reminders', 'snoozed_until', 'TEXT');
 
   _db = db;
   global.__myagenda_db = db;

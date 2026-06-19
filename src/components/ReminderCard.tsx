@@ -16,6 +16,7 @@ export interface ReminderCardData {
   category_name: string | null;
   vehicle_name: string | null;
   vehicle_km: number | null;
+  snoozed_until?: string | null;
 }
 
 const BUCKET_STYLE: Record<string, string> = {
@@ -25,18 +26,26 @@ const BUCKET_STYLE: Record<string, string> = {
   month: 'border-l-slate-300 bg-white',
 };
 
+const SNOOZE_OPTIONS = [
+  { label: '1g', days: 1 },
+  { label: '3g', days: 3 },
+  { label: '1w', days: 7 },
+];
+
 export default function ReminderCard({ data }: { data: ReminderCardData }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [showSnooze, setShowSnooze] = useState(false);
 
-  async function act(action: 'complete' | 'stop' | 'cancel') {
+  async function act(action: 'complete' | 'stop' | 'cancel' | 'snooze', snoozeDays?: number) {
     setBusy(true);
     try {
       await fetch('/api/reminders', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: data.id, action }),
+        body: JSON.stringify({ id: data.id, action, snoozeDays }),
       });
+      setShowSnooze(false);
       router.refresh();
     } finally {
       setBusy(false);
@@ -62,12 +71,34 @@ export default function ReminderCard({ data }: { data: ReminderCardData }) {
           {data.category_name ? `${data.category_name} · ` : ''}
           {dueLabel}
         </p>
+
+        {showSnooze && (
+          <div className="mt-2 flex items-center gap-1">
+            <span className="text-xs text-slate-500">Posticipa:</span>
+            {SNOOZE_OPTIONS.map((o) => (
+              <button
+                key={o.days}
+                onClick={() => act('snooze', o.days)}
+                disabled={busy}
+                className="rounded bg-slate-100 px-2 py-0.5 text-xs hover:bg-slate-200"
+              >
+                {o.label}
+              </button>
+            ))}
+            <button onClick={() => setShowSnooze(false)} className="text-xs text-slate-400 hover:text-slate-600">
+              ✕
+            </button>
+          </div>
+        )}
       </div>
       <div className="flex flex-col items-end gap-1">
         <button onClick={() => act('complete')} disabled={busy} className="btn-primary px-2.5 py-1 text-xs">
           Fatto ✓
         </button>
         <div className="flex gap-2 text-[11px] text-slate-400">
+          <button onClick={() => setShowSnooze((s) => !s)} disabled={busy} className="hover:text-amber-600">
+            😴 snooze
+          </button>
           {data.recurring ? (
             <button onClick={() => act('stop')} disabled={busy} className="hover:text-slate-600">
               interrompi

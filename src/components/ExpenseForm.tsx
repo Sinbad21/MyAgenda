@@ -2,13 +2,12 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { EXPENSE_CATEGORIES } from '@/lib/categories';
 import { todayIso } from '@/lib/format';
 
-export default function ExpenseForm() {
+export default function ExpenseForm({ categories }: { categories: string[] }) {
   const router = useRouter();
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<string>('Alimentari');
+  const [category, setCategory] = useState<string>(categories[0] ?? 'Alimentari');
   const [date, setDate] = useState(todayIso());
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
@@ -66,7 +65,7 @@ export default function ExpenseForm() {
         <div>
           <label className="label">Categoria</label>
           <select className="input" value={category} onChange={(e) => setCategory(e.target.value)}>
-            {EXPENSE_CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>

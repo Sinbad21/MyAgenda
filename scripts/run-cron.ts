@@ -1,12 +1,12 @@
 /**
- * Esegue il job di scheduling dei reminder (notifiche scadute/in scadenza).
+ * Esegue tutti i job pianificati: notifiche reminder, spese ricorrenti, digest email.
  * Uso: npm run cron   (oppure schedulalo con cron di sistema / Vercel Cron)
  */
-import { processDueReminders } from '../src/lib/cron';
+import { runCron } from '../src/lib/cron';
 
-processDueReminders()
+runCron()
   .then((r) => {
-    console.log(`✅ Cron completato. Reminder notificati: ${r.processed}`);
+    console.log('✅ Cron completato:', JSON.stringify(r, null, 2));
     process.exit(0);
   })
   .catch((err) => {

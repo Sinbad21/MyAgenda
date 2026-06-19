@@ -6,11 +6,13 @@ import {
   categoryTotals,
   budgetStatuses,
   getBudgets,
+  multiMonthTotals,
 } from '@/lib/expenses';
-import { EXPENSE_CATEGORIES, EXPENSE_CATEGORY_ICONS } from '@/lib/categories';
+import { listExpenseCategories, EXPENSE_CATEGORY_ICONS } from '@/lib/categories';
 import { formatCurrency, formatDateIt } from '@/lib/format';
 import ExpenseForm from '@/components/ExpenseForm';
 import BudgetEditor from '@/components/BudgetEditor';
+import ExpenseRow from '@/components/ExpenseRow';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,8 +30,14 @@ export default async function SpesePage() {
   const expenses = listExpenses(user.id, curKey);
   const daily = dailyTotals(user.id, curKey);
   const budgetMap = Object.fromEntries(getBudgets(user.id).map((b) => [b.category, b.monthly_limit]));
+  const cats = listExpenseCategories(user.id);
+  const catNames = cats.map((c) => c.name);
+  const iconMap: Record<string, string> = { ...EXPENSE_CATEGORY_ICONS };
+  for (const c of cats) iconMap[c.name] = c.icon;
+  const trend6 = multiMonthTotals(user.id, 6);
 
   const maxDaily = Math.max(1, ...daily.map((d) => d.total));
+  const maxTrend = Math.max(1, ...trend6.map((m) => m.total));
   const delta = total - prevTotal;
 
   return (
@@ -42,7 +50,7 @@ export default async function SpesePage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
-        <ExpenseForm />
+        <ExpenseForm categories={catNames} />
 
         {/* Riepilogo */}
         <div className="card">
@@ -81,17 +89,17 @@ export default async function SpesePage() {
       <div className="card">
         <h2 className="mb-4 font-semibold text-slate-800">Per categoria</h2>
         <div className="space-y-3">
-          {EXPENSE_CATEGORIES.map((cat) => {
-            const spent = totals[cat] ?? 0;
-            const limit = budgetMap[cat];
-            const b = budgets.find((x) => x.category === cat);
+          {cats.map((cat) => {
+            const spent = totals[cat.name] ?? 0;
+            const limit = budgetMap[cat.name];
+            const b = budgets.find((x) => x.category === cat.name);
             const pct = limit ? Math.min(100, (spent / limit) * 100) : 0;
             const barColor = b?.level === 'over' ? 'bg-red-500' : b?.level === 'warn' ? 'bg-amber-400' : 'bg-emerald-400';
             return (
-              <div key={cat}>
+              <div key={cat.id}>
                 <div className="mb-1 flex items-center justify-between text-sm">
                   <span className="text-slate-600">
-                    {EXPENSE_CATEGORY_ICONS[cat]} {cat}
+                    {iconMap[cat.name] ?? '📦'} {cat.name}
                   </span>
                   <span className="font-medium text-slate-700">
                     {formatCurrency(spent)}
@@ -111,28 +119,52 @@ export default async function SpesePage() {
         </div>
       </div>
 
-      <BudgetEditor initial={budgetMap} />
+      {/* Trend ultimi 6 mesi */}
+      <div className="card">
+        <h2 className="mb-3 font-semibold text-slate-800">Trend ultimi 6 mesi</h2>
+        <div className="flex h-28 items-end gap-1">
+          {trend6.map((m) => (
+            <div key={m.month} className="flex flex-1 flex-col items-center gap-1">
+              <span className="text-[10px] text-slate-400">{formatCurrency(m.total)}</span>
+              <div
+                title={`${m.month}: ${formatCurrency(m.total)}`}
+                className={`w-full rounded-t ${m.month === curKey ? 'bg-brand-500' : 'bg-brand-200'}`}
+                style={{ height: `${Math.max(4, (m.total / maxTrend) * 80)}px` }}
+              />
+              <span className="text-[10px] text-slate-400">
+                {m.month.slice(5)}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {/* Elenco spese */}
+      <BudgetEditor initial={budgetMap} categories={catNames} />
+
+      {/* Elenco spese con modifica/elimina */}
       <div className="card !p-0">
         <h2 className="border-b border-slate-100 px-5 py-3 font-semibold text-slate-800">Movimenti del mese</h2>
         {expenses.length === 0 ? (
           <p className="px-5 py-4 text-sm text-slate-500">Nessuna spesa registrata questo mese.</p>
         ) : (
-          <ul className="divide-y divide-slate-100">
-            {expenses.map((e) => (
-              <li key={e.id} className="flex items-center gap-3 px-5 py-3">
-                <span className="text-lg">{EXPENSE_CATEGORY_ICONS[e.category] || '📦'}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-800">{e.note || e.category}</p>
-                  <p className="text-xs text-slate-400">
-                    {e.category} · {formatDateIt(e.date)}
-                  </p>
-                </div>
-                <span className="shrink-0 font-medium text-slate-800">{formatCurrency(e.amount)}</span>
-              </li>
-            ))}
-          </ul>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b border-slate-100 text-xs text-slate-500">
+                <tr>
+                  <th className="px-2 py-2 text-left font-medium">Importo</th>
+                  <th className="px-2 py-2 text-left font-medium">Categoria</th>
+                  <th className="px-2 py-2 text-left font-medium">Data</th>
+                  <th className="px-2 py-2 text-left font-medium">Nota</th>
+                  <th className="px-2 py-2 text-right font-medium">Azioni</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.map((e) => (
+                  <ExpenseRow key={e.id} expense={e} categories={catNames} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>

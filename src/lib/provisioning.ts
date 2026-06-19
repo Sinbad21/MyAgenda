@@ -1,5 +1,5 @@
 import { getDb, newId, nowIso } from './db';
-import { DEFAULT_CATEGORIES } from './categories';
+import { DEFAULT_CATEGORIES, ensureDefaultExpenseCategories } from './categories';
 
 /** Crea le categorie predefinite per un nuovo utente (§4). */
 export function provisionNewUser(userId: string): void {
@@ -14,4 +14,6 @@ export function provisionNewUser(userId: string): void {
     }
   });
   tx();
+  // Also seed default expense categories
+  ensureDefaultExpenseCategories(userId);
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { processDueReminders } from '@/lib/cron';
+import { runCron } from '@/lib/cron';
 
 export const runtime = 'nodejs';
 
@@ -13,7 +13,7 @@ function authorized(req: Request): boolean {
 
 async function run(req: Request) {
   if (!authorized(req)) return NextResponse.json({ error: 'Non autorizzato' }, { status: 401 });
-  const result = await processDueReminders();
+  const result = await runCron();
   return NextResponse.json({ ok: true, ...result });
 }
 

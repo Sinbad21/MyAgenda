@@ -188,3 +188,41 @@ export function cancelReminder(userId: string, reminderId: string): void {
     .prepare(`UPDATE reminders SET status = 'cancelled' WHERE id = ? AND user_id = ?`)
     .run(reminderId, userId);
 }
+
+/** Posticipa un reminder di N giorni (snooze). */
+export function snoozeReminder(userId: string, reminderId: string, days: number): Reminder {
+  const db = getDb();
+  const reminder = db
+    .prepare('SELECT * FROM reminders WHERE id = ? AND user_id = ?')
+    .get(reminderId, userId) as Reminder | undefined;
+  if (!reminder) throw new Error('Reminder non trovato');
+  const snoozeDate = new Date();
+  snoozeDate.setDate(snoozeDate.getDate() + days);
+  const snoozedUntil = snoozeDate.toISOString().slice(0, 10);
+  db.prepare(`UPDATE reminders SET snoozed_until = ?, notified_at = NULL WHERE id = ?`).run(snoozedUntil, reminderId);
+  return db.prepare('SELECT * FROM reminders WHERE id = ?').get(reminderId) as Reminder;
+}
+
+/** Aggiorna i campi principali di un reminder (titolo, data, km). */
+export function updateReminder(
+  userId: string,
+  reminderId: string,
+  patch: Partial<Pick<Reminder, 'title' | 'due_date' | 'due_km' | 'advance_days' | 'recurring'>>
+): Reminder {
+  const db = getDb();
+  const reminder = db
+    .prepare('SELECT * FROM reminders WHERE id = ? AND user_id = ?')
+    .get(reminderId, userId) as Reminder | undefined;
+  if (!reminder) throw new Error('Reminder non trovato');
+  db.prepare(
+    `UPDATE reminders SET title = ?, due_date = ?, due_km = ?, advance_days = ?, recurring = ? WHERE id = ?`
+  ).run(
+    patch.title ?? reminder.title,
+    patch.due_date !== undefined ? patch.due_date : reminder.due_date,
+    patch.due_km !== undefined ? patch.due_km : reminder.due_km,
+    patch.advance_days ?? reminder.advance_days,
+    patch.recurring !== undefined ? (patch.recurring ? 1 : 0) : reminder.recurring,
+    reminderId
+  );
+  return db.prepare('SELECT * FROM reminders WHERE id = ?').get(reminderId) as Reminder;
+}

@@ -1,10 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { suggestInterval } from '@/lib/knowledge-base';
 import { addMonthsIso, todayIso } from '@/lib/format';
-import { EXPENSE_CATEGORIES } from '@/lib/categories';
 
 interface Cat {
   id: string;
@@ -18,7 +17,15 @@ interface Veh {
   current_km: number;
 }
 
-export default function NewLogWizard({ categories, vehicles }: { categories: Cat[]; vehicles: Veh[] }) {
+export default function NewLogWizard({
+  categories,
+  vehicles,
+  expenseCategories,
+}: {
+  categories: Cat[];
+  vehicles: Veh[];
+  expenseCategories: string[];
+}) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
@@ -31,6 +38,10 @@ export default function NewLogWizard({ categories, vehicles }: { categories: Cat
   const [vehicleId, setVehicleId] = useState<string>('');
   const [kmAtEvent, setKmAtEvent] = useState<string>('');
 
+  // attachment
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [attachFile, setAttachFile] = useState<File | null>(null);
+
   // reminder
   const [remEnabled, setRemEnabled] = useState(true);
   const [triggerType, setTriggerType] = useState<'time' | 'km'>('time');
@@ -42,7 +53,7 @@ export default function NewLogWizard({ categories, vehicles }: { categories: Cat
 
   // expense (opzionale)
   const [expAmount, setExpAmount] = useState<string>('');
-  const [expCategory, setExpCategory] = useState<string>('Altro');
+  const [expCategory, setExpCategory] = useState<string>(expenseCategories[0] ?? 'Altro');
 
   const isVehicle = category?.kind === 'vehicles';
 
@@ -96,6 +107,14 @@ export default function NewLogWizard({ categories, vehicles }: { categories: Cat
         setError(data.error || 'Errore nel salvataggio');
         return;
       }
+
+      // Upload attachment if provided
+      if (attachFile && data.logId) {
+        const fd = new FormData();
+        fd.append('file', attachFile);
+        await fetch(`/api/upload?logId=${data.logId}`, { method: 'POST', body: fd });
+      }
+
       router.push('/');
       router.refresh();
     } catch {
@@ -203,6 +222,18 @@ export default function NewLogWizard({ categories, vehicles }: { categories: Cat
               />
             </div>
 
+            <div>
+              <label className="label">Allegato (foto / PDF ricevuta)</label>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,application/pdf"
+                onChange={(e) => setAttachFile(e.target.files?.[0] ?? null)}
+                className="block w-full text-sm text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100"
+              />
+              {attachFile && <p className="mt-1 text-xs text-slate-500">📎 {attachFile.name}</p>}
+            </div>
+
             <div className="grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
               <div>
                 <label className="label">Spesa associata (€)</label>
@@ -217,7 +248,7 @@ export default function NewLogWizard({ categories, vehicles }: { categories: Cat
               <div>
                 <label className="label">Categoria spesa</label>
                 <select className="input" value={expCategory} onChange={(e) => setExpCategory(e.target.value)}>
-                  {EXPENSE_CATEGORIES.map((c) => (
+                  {expenseCategories.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>

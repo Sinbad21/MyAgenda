@@ -2,7 +2,7 @@ import { getDb } from './db';
 import { isDue } from './reminders';
 import { daysUntil } from './format';
 import { monthTotal, categoryTotals, budgetStatuses } from './expenses';
-import { EXPENSE_CATEGORIES } from './categories';
+import { listExpenseCategories, EXPENSE_CATEGORY_ICONS } from './categories';
 import type { Category, LogEntry, Reminder, Vehicle } from './types';
 
 export type ReminderBucket = 'overdue' | 'today' | 'week' | 'month' | 'later';
@@ -37,13 +37,13 @@ export function pendingReminderViews(userId: string): ReminderView[] {
        LEFT JOIN categories c ON c.id = r.category_id
        LEFT JOIN vehicles v ON v.id = r.vehicle_id
        WHERE r.user_id = ? AND r.status = 'pending'
+         AND (r.snoozed_until IS NULL OR r.snoozed_until <= date('now'))
        ORDER BY (r.due_date IS NULL), r.due_date ASC`
     )
     .all(userId) as any[];
 
   return rows.map((r) => {
     const days = r.due_date ? daysUntil(r.due_date) : null;
-    // ricostruisci l'oggetto reminder per isDue
     const reminder: Reminder = r;
     return { ...r, days, bucket: bucketOf(reminder, db) } as ReminderView;
   });
@@ -73,24 +73,37 @@ export interface LogView extends LogEntry {
 
 export function recentLogs(userId: string, limit = 20, categoryId?: string | null): LogView[] {
   const db = getDb();
+
+  // Include logs shared with this user by others
+  const sharedClause = `
+    OR l.id IN (
+      SELECT resource_id FROM shares
+      WHERE shared_with_user_id = ? AND resource_type = 'log'
+    )
+    OR l.category_id IN (
+      SELECT resource_id FROM shares
+      WHERE shared_with_user_id = ? AND resource_type = 'category'
+    )
+  `;
+
   if (categoryId) {
     return db
       .prepare(
         `SELECT l.*, c.name AS category_name, c.icon AS category_icon
          FROM logs l LEFT JOIN categories c ON c.id = l.category_id
-         WHERE l.user_id = ? AND l.category_id = ?
+         WHERE (l.user_id = ? ${sharedClause}) AND l.category_id = ?
          ORDER BY l.event_date DESC, l.created_at DESC LIMIT ?`
       )
-      .all(userId, categoryId, limit) as LogView[];
+      .all(userId, userId, userId, categoryId, limit) as LogView[];
   }
   return db
     .prepare(
       `SELECT l.*, c.name AS category_name, c.icon AS category_icon
        FROM logs l LEFT JOIN categories c ON c.id = l.category_id
-       WHERE l.user_id = ?
+       WHERE l.user_id = ? ${sharedClause}
        ORDER BY l.event_date DESC, l.created_at DESC LIMIT ?`
     )
-    .all(userId, limit) as LogView[];
+    .all(userId, userId, userId, limit) as LogView[];
 }
 
 export interface CategorySummary {
@@ -129,10 +142,13 @@ export function expenseWidget(userId: string): ExpenseWidget {
   const curKey = now.toISOString().slice(0, 7);
   const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
   const totals = categoryTotals(userId, curKey);
+  const cats = listExpenseCategories(userId);
+  const iconMap: Record<string, string> = { ...EXPENSE_CATEGORY_ICONS };
+  for (const c of cats) iconMap[c.name] = c.icon;
   return {
     total: monthTotal(userId, curKey),
     prevTotal: monthTotal(userId, prev),
-    byCategory: EXPENSE_CATEGORIES.map((c) => ({ category: c, total: totals[c] ?? 0 })).filter((x) => x.total > 0),
+    byCategory: cats.map((c) => ({ category: c.name, total: totals[c.name] ?? 0 })).filter((x) => x.total > 0),
     budgets: budgetStatuses(userId, curKey),
   };
 }

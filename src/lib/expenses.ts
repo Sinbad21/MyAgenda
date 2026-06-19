@@ -1,7 +1,7 @@
 import { getDb, newId, nowIso } from './db';
 import { monthStart, todayIso } from './format';
-import { EXPENSE_CATEGORIES } from './categories';
-import type { Budget, Expense } from './types';
+import { expenseCategoryNames } from './categories';
+import type { Budget, Expense, RecurringExpense } from './types';
 
 export interface AddExpenseInput {
   userId: string;
@@ -15,7 +15,9 @@ export interface AddExpenseInput {
 export function addExpense(input: AddExpenseInput): Expense {
   const db = getDb();
   const id = newId();
-  const category = EXPENSE_CATEGORIES.includes(input.category as any) ? input.category : 'Altro';
+  // Accept any category name: validate against DB categories (defaults + custom)
+  const validNames = expenseCategoryNames(input.userId);
+  const category = validNames.includes(input.category) ? input.category : 'Altro';
   db.prepare(
     `INSERT INTO expenses (id, user_id, log_id, amount, category, date, note, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
@@ -121,4 +123,127 @@ export function compareWithPreviousMonth(
   const previous = categoryTotals(userId, prevKey)[category] ?? 0;
   const deltaPct = previous > 0 ? ((current - previous) / previous) * 100 : null;
   return { current, previous, deltaPct };
+}
+
+// ── CRUD helpers ────────────────────────────────────────────────────────────
+
+export function updateExpense(
+  userId: string,
+  id: string,
+  patch: Partial<Pick<Expense, 'amount' | 'category' | 'date' | 'note'>>
+): Expense {
+  const db = getDb();
+  const expense = db.prepare('SELECT * FROM expenses WHERE id = ? AND user_id = ?').get(id, userId) as Expense | undefined;
+  if (!expense) throw new Error('Spesa non trovata');
+  const validNames = expenseCategoryNames(userId);
+  const category = patch.category ? (validNames.includes(patch.category) ? patch.category : expense.category) : expense.category;
+  db.prepare(`UPDATE expenses SET amount = ?, category = ?, date = ?, note = ? WHERE id = ?`).run(
+    patch.amount ?? expense.amount,
+    category,
+    patch.date ?? expense.date,
+    patch.note !== undefined ? patch.note : expense.note,
+    id
+  );
+  return db.prepare('SELECT * FROM expenses WHERE id = ?').get(id) as Expense;
+}
+
+export function deleteExpense(userId: string, id: string): void {
+  const db = getDb();
+  const expense = db.prepare('SELECT id FROM expenses WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!expense) throw new Error('Spesa non trovata');
+  db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+}
+
+// ── Multi-month trend ────────────────────────────────────────────────────────
+
+/** Totali mensili per gli ultimi `months` mesi. */
+export function multiMonthTotals(
+  userId: string,
+  months = 6
+): { month: string; total: number }[] {
+  const now = new Date();
+  const result: { month: string; total: number }[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = d.toISOString().slice(0, 7);
+    result.push({ month: key, total: monthTotal(userId, key) });
+  }
+  return result;
+}
+
+// ── Recurring expenses ────────────────────────────────────────────────────────
+
+export function listRecurring(userId: string): RecurringExpense[] {
+  return getDb()
+    .prepare('SELECT * FROM recurring_expenses WHERE user_id = ? ORDER BY created_at')
+    .all(userId) as RecurringExpense[];
+}
+
+export interface AddRecurringInput {
+  userId: string;
+  label: string;
+  amount: number;
+  category: string;
+  dayOfMonth?: number;
+}
+
+export function addRecurring(input: AddRecurringInput): RecurringExpense {
+  const db = getDb();
+  const id = newId();
+  const validNames = expenseCategoryNames(input.userId);
+  const category = validNames.includes(input.category) ? input.category : 'Altro';
+  const day = Math.max(1, Math.min(28, input.dayOfMonth ?? 1));
+  db.prepare(
+    `INSERT INTO recurring_expenses (id, user_id, label, amount, category, day_of_month, active, last_inserted, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, 1, NULL, ?)`
+  ).run(id, input.userId, input.label.trim(), input.amount, category, day, nowIso());
+  return db.prepare('SELECT * FROM recurring_expenses WHERE id = ?').get(id) as RecurringExpense;
+}
+
+export function toggleRecurring(userId: string, id: string): RecurringExpense {
+  const db = getDb();
+  const rec = db.prepare('SELECT * FROM recurring_expenses WHERE id = ? AND user_id = ?').get(id, userId) as RecurringExpense | undefined;
+  if (!rec) throw new Error('Spesa ricorrente non trovata');
+  db.prepare('UPDATE recurring_expenses SET active = ? WHERE id = ?').run(rec.active ? 0 : 1, id);
+  return db.prepare('SELECT * FROM recurring_expenses WHERE id = ?').get(id) as RecurringExpense;
+}
+
+export function deleteRecurring(userId: string, id: string): void {
+  const db = getDb();
+  const rec = db.prepare('SELECT id FROM recurring_expenses WHERE id = ? AND user_id = ?').get(id, userId);
+  if (!rec) throw new Error('Spesa ricorrente non trovata');
+  db.prepare('DELETE FROM recurring_expenses WHERE id = ?').run(id);
+}
+
+/**
+ * Auto-inserts recurring expenses for the current month.
+ * Called from the cron job. Idempotent: won't double-insert for the same month.
+ */
+export function processRecurringExpenses(): { inserted: number } {
+  const db = getDb();
+  const today = new Date();
+  const monthKey = today.toISOString().slice(0, 7);
+  const dayOfMonth = today.getDate();
+
+  const recs = db
+    .prepare(`SELECT re.*, u.id AS uid FROM recurring_expenses re JOIN users u ON u.id = re.user_id WHERE re.active = 1`)
+    .all() as (RecurringExpense & { uid: string })[];
+
+  let inserted = 0;
+  for (const r of recs) {
+    // Only insert on or after the scheduled day of month
+    if (dayOfMonth < r.day_of_month) continue;
+    // Don't re-insert if already done this month
+    if (r.last_inserted && r.last_inserted.startsWith(monthKey)) continue;
+
+    const date = `${monthKey}-${String(r.day_of_month).padStart(2, '0')}`;
+    db.prepare(
+      `INSERT INTO expenses (id, user_id, log_id, amount, category, date, note, created_at)
+       VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`
+    ).run(newId(), r.user_id, r.amount, r.category, date, `${r.label} (automatico)`, nowIso());
+
+    db.prepare('UPDATE recurring_expenses SET last_inserted = ? WHERE id = ?').run(monthKey, r.id);
+    inserted++;
+  }
+  return { inserted };
 }

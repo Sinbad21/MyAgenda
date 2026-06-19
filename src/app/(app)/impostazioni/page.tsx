@@ -1,9 +1,14 @@
 import { getCurrentUser } from '@/lib/auth';
 import { listCategories, listVehicles } from '@/lib/queries';
+import { listExpenseCategories } from '@/lib/categories';
+import { listRecurring } from '@/lib/expenses';
 import SettingsForm from '@/components/SettingsForm';
 import VehicleManager from '@/components/VehicleManager';
 import CategoryManager from '@/components/CategoryManager';
 import ShareForm from '@/components/ShareForm';
+import ExpenseCategoryManager from '@/components/ExpenseCategoryManager';
+import RecurringManager from '@/components/RecurringManager';
+import ExportImportPanel from '@/components/ExportImportPanel';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +22,13 @@ export default async function ImpostazioniPage() {
     icon: c.icon,
     is_default: c.is_default,
   }));
+  const expCats = listExpenseCategories(user.id).map((c) => ({
+    id: c.id,
+    name: c.name,
+    icon: c.icon,
+    is_default: c.is_default,
+  }));
+  const recurring = listRecurring(user.id);
 
   return (
     <div className="space-y-6">
@@ -40,6 +52,13 @@ export default async function ImpostazioniPage() {
       </div>
 
       <CategoryManager categories={categories} />
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <ExpenseCategoryManager categories={expCats} />
+        <RecurringManager recurring={recurring} expenseCategories={expCats.map((c) => c.name)} />
+      </div>
+
+      <ExportImportPanel />
     </div>
   );
 }

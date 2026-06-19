@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { setBudget } from '@/lib/expenses';
-import { EXPENSE_CATEGORIES } from '@/lib/categories';
 
 export const runtime = 'nodejs';
 
 const schema = z.object({
-  category: z.enum(EXPENSE_CATEGORIES),
+  category: z.string().min(1).max(100),
   monthlyLimit: z.number().nonnegative(),
 });
 

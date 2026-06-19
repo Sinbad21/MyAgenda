@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getCurrentUser } from '@/lib/auth';
 import { listCategories, recentLogs } from '@/lib/queries';
-import { formatDateLongIt } from '@/lib/format';
+import LogRow from '@/components/LogRow';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -67,13 +67,7 @@ export default async function LogsPage({ searchParams }: { searchParams: { cat?:
                     <span className="absolute -left-[1.42rem] top-1 flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm ring-2 ring-slate-100">
                       {l.category_icon || '📋'}
                     </span>
-                    <div className="card !p-3">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-slate-800">{l.title}</p>
-                        <span className="text-xs text-slate-400">{formatDateLongIt(l.event_date)}</span>
-                      </div>
-                      {l.notes && <p className="mt-1 whitespace-pre-line text-sm text-slate-500">{l.notes}</p>}
-                    </div>
+                    <LogRow log={l} />
                   </div>
                 ))}
               </div>

@@ -2,13 +2,19 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { EXPENSE_CATEGORIES } from '@/lib/categories';
 
-export default function BudgetEditor({ initial }: { initial: Record<string, number> }) {
+export default function BudgetEditor({
+  initial,
+  categories,
+}: {
+  initial: Record<string, number>;
+  categories?: string[];
+}) {
   const router = useRouter();
+  const cats = categories ?? Object.keys(initial);
   const [values, setValues] = useState<Record<string, string>>(() => {
     const v: Record<string, string> = {};
-    for (const c of EXPENSE_CATEGORIES) v[c] = initial[c] ? String(initial[c]) : '';
+    for (const c of cats) v[c] = initial[c] ? String(initial[c]) : '';
     return v;
   });
   const [savingCat, setSavingCat] = useState<string | null>(null);
@@ -33,13 +39,13 @@ export default function BudgetEditor({ initial }: { initial: Record<string, numb
       <h2 className="mb-1 font-semibold text-slate-800">Budget mensili</h2>
       <p className="mb-3 text-xs text-slate-500">Avviso al 75%, alert al 100% del budget.</p>
       <div className="space-y-2">
-        {EXPENSE_CATEGORIES.map((c) => (
+        {cats.map((c) => (
           <div key={c} className="flex items-center gap-2">
             <span className="w-24 text-sm text-slate-600">{c}</span>
             <input
               className="input flex-1"
               inputMode="decimal"
-              value={values[c]}
+              value={values[c] ?? ''}
               onChange={(e) => setValues((v) => ({ ...v, [c]: e.target.value }))}
               placeholder="nessun limite"
             />

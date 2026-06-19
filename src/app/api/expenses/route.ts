@@ -1,17 +1,26 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
-import { addExpense, budgetStatuses, monthTotal } from '@/lib/expenses';
-import { EXPENSE_CATEGORIES } from '@/lib/categories';
+import { addExpense, budgetStatuses, monthTotal, listExpenses } from '@/lib/expenses';
+import { expenseCategoryNames } from '@/lib/categories';
 
 export const runtime = 'nodejs';
 
 const schema = z.object({
   amount: z.number().positive(),
-  category: z.enum(EXPENSE_CATEGORIES),
+  category: z.string().min(1),
   date: z.string().optional(),
   note: z.string().max(500).optional(),
 });
+
+export async function GET(req: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
+  const { searchParams } = new URL(req.url);
+  const month = searchParams.get('month') ?? undefined;
+  const expenses = listExpenses(user.id, month);
+  return NextResponse.json({ expenses });
+}
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();

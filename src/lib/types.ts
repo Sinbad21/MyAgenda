@@ -63,6 +63,7 @@ export interface Reminder {
   status: ReminderStatus;
   notified_at: string | null;
   completed_at: string | null;
+  snoozed_until: string | null;
   created_at: string;
 }
 
@@ -82,6 +83,28 @@ export interface Budget {
   user_id: string;
   category: string;
   monthly_limit: number;
+}
+
+export interface ExpenseCustomCategory {
+  id: string;
+  user_id: string;
+  name: string;
+  icon: string;
+  color: string | null;
+  is_default: number;
+  created_at: string;
+}
+
+export interface RecurringExpense {
+  id: string;
+  user_id: string;
+  label: string;
+  amount: number;
+  category: string;
+  day_of_month: number;
+  active: number;
+  last_inserted: string | null;
+  created_at: string;
 }
 
 export interface NotificationRow {
