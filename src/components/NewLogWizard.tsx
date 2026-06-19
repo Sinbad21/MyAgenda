@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { suggestInterval } from '@/lib/knowledge-base';
 import { addMonthsIso, todayIso } from '@/lib/format';
 import LocationPicker from './LocationPicker';
+import CalendarPicker from './CalendarPicker';
 
 interface Cat {
   id: string;
@@ -49,6 +50,7 @@ export default function NewLogWizard({
   const [triggerType, setTriggerType] = useState<'time' | 'km'>('time');
   const [intervalMonths, setIntervalMonths] = useState<number>(12);
   const [dueDate, setDueDate] = useState<string>('');
+  const [dueTime, setDueTime] = useState<string>('');
   const [dueKm, setDueKm] = useState<string>('');
   const [recurring, setRecurring] = useState(false);
   const [advanceDays, setAdvanceDays] = useState(7);
@@ -92,6 +94,7 @@ export default function NewLogWizard({
               enabled: true,
               triggerType,
               dueDate: triggerType === 'time' ? dueDate || addMonthsIso(eventDate, intervalMonths) : dueDate || null,
+              dueTime: dueTime || null,
               intervalMonths: intervalMonths || null,
               dueKm: triggerType === 'km' && dueKm ? Number(dueKm) : null,
               recurring,
@@ -314,7 +317,7 @@ export default function NewLogWizard({
                 )}
 
                 {triggerType === 'time' ? (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-3">
                     <div>
                       <label className="label">Tra (mesi)</label>
                       <input
@@ -328,10 +331,12 @@ export default function NewLogWizard({
                         }}
                       />
                     </div>
-                    <div>
-                      <label className="label">Data promemoria</label>
-                      <input className="input" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
-                    </div>
+                    <CalendarPicker
+                      date={dueDate}
+                      time={dueTime}
+                      onDateChange={setDueDate}
+                      onTimeChange={setDueTime}
+                    />
                   </div>
                 ) : (
                   <div>
@@ -395,7 +400,7 @@ export default function NewLogWizard({
                   value={
                     triggerType === 'km'
                       ? `a ${dueKm || '—'} km${recurring ? ' · ricorrente' : ''}`
-                      : `${dueDate} (${intervalMonths} mesi)${recurring ? ' · ricorrente' : ''}`
+                      : `${dueDate}${dueTime ? ' alle ' + dueTime : ''} (${intervalMonths} mesi)${recurring ? ' · ricorrente' : ''}`
                   }
                 />
               )}

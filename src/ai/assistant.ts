@@ -16,8 +16,12 @@ export type ChatAction =
       interval_months?: number | null;
       recurring?: boolean;
     }
-  | { type: 'reminder'; title: string; date?: string; interval_months?: number | null; recurring?: boolean }
-  | { type: 'update_km'; km: number; vehicle_name?: string };
+  | { type: 'reminder'; title: string; date?: string; time?: string; interval_months?: number | null; recurring?: boolean }
+  | { type: 'update_km'; km: number; vehicle_name?: string }
+  | { type: 'update_reminder'; id: string; title?: string; due_date?: string; due_time?: string }
+  | { type: 'delete_reminder'; id: string }
+  | { type: 'update_log'; id: string; title?: string; notes?: string; event_date?: string }
+  | { type: 'delete_log'; id: string };
 
 export interface ParsedResult {
   reply: string;
@@ -52,18 +56,11 @@ async function interpretWithClaude(text: string, ctx: PromptContext, history: Co
   const client = new Anthropic({ apiKey: aiConfig.apiKey });
   const system = buildSystemPrompt(ctx);
 
-<<<<<<< HEAD
   // Costruisce la storia con max 10 turni precedenti (per evitare token eccessivi)
   const historyMessages: Anthropic.MessageParam[] = history
     .slice(-10)
     .map((m) => ({ role: m.role, content: m.text }));
 
-=======
-  const historyMessages: Anthropic.MessageParam[] = history
-    .slice(-10)
-    .map((m) => ({ role: m.role, content: m.text }));
-
->>>>>>> e969c0d95d1a012c1fa5b7f471fedf326e06715b
   const response = await client.messages.create({
     model: aiConfig.model,
     max_tokens: 1024,

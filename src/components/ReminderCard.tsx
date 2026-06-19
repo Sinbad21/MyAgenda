@@ -8,6 +8,7 @@ export interface ReminderCardData {
   id: string;
   title: string;
   due_date: string | null;
+  due_time: string | null;
   due_km: number | null;
   trigger_type: string;
   recurring: number;
@@ -56,7 +57,7 @@ export default function ReminderCard({ data }: { data: ReminderCardData }) {
     data.due_km != null && data.trigger_type === 'km'
       ? `a ${formatKm(data.due_km)}${data.vehicle_km != null ? ` (ora ${formatKm(data.vehicle_km)})` : ''}`
       : data.due_date
-        ? `${formatDateIt(data.due_date)} · ${relativeDue(data.due_date)}`
+        ? `${formatDateIt(data.due_date)}${data.due_time ? ' alle ' + data.due_time : ''} · ${relativeDue(data.due_date)}`
         : '';
 
   return (
