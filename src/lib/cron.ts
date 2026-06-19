@@ -6,65 +6,56 @@ import { monthTotal, categoryTotals, processRecurringExpenses } from './expenses
 import { listExpenseCategories, EXPENSE_CATEGORY_ICONS } from './categories';
 import type { Reminder, User } from './types';
 
-/**
- * Job di scheduling (§ requisiti tecnici): processa i reminder scaduti o in
- * scadenza e invia le notifiche sui canali abilitati dall'utente.
- * Chiamabile da /api/cron (Vercel Cron) o dallo script scripts/run-cron.ts.
- */
 export async function processDueReminders(): Promise<{ processed: number }> {
   const db = getDb();
-
-  // Pending reminders that either have never been notified, or were notified
-  // more than 24h ago (re-notify if still pending/overdue)
-  const reminders = db
+  const { results: reminders } = await db
     .prepare(
-      `SELECT * FROM reminders
-       WHERE status = 'pending'
+      `SELECT * FROM reminders WHERE status = 'pending'
          AND (snoozed_until IS NULL OR snoozed_until <= date('now'))
          AND (notified_at IS NULL OR (due_date IS NOT NULL AND due_date < date('now') AND datetime(notified_at) < datetime('now', '-24 hours')))`
     )
-    .all() as Reminder[];
+    .all<Reminder>();
 
   let processed = 0;
   for (const r of reminders) {
-    const due = isDue(r, db);
+    const due = await isDue(r);
     const upcoming = isUpcoming(r);
     if (!due && !upcoming) continue;
 
-    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(r.user_id) as User | undefined;
+    const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(r.user_id).first<User>();
     if (!user) continue;
 
-    const when = due ? 'scaduto' : 'in scadenza';
-    const title = `Promemoria ${when}: ${r.title}`;
-    const body = r.due_date ? `Scadenza: ${formatDateIt(r.due_date)}` : 'Controlla la tua agenda MyAgenda.';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const reminderUrl = `${appUrl}/promemoria`;
 
-    addInAppNotification(user.id, title, body, 'inapp', r.id);
-    if (user.push_notifications) {
-      await sendPushToUser(user.id, { title, body, url: '/' });
-    }
-    if (user.email_notifications) {
-      await sendEmail(
-        user.email,
-        title,
-        `<h2>${title}</h2><p>${body}</p><p>Apri <strong>MyAgenda</strong> per segnarlo come fatto.</p>`
-      );
+    let title: string, body: string, emailHtml: string;
+    if (due) {
+      title = `✅ Hai completato "${r.title}"?`;
+      body = r.due_date
+        ? `Era in scadenza il ${formatDateIt(r.due_date)}. Segnalo come fatto se l'hai già completato.`
+        : "Era in scadenza. Segnalo come fatto se l'hai già completato.";
+      emailHtml = `<h2>✅ Hai completato "${r.title}"?</h2><p>${body}</p><p style="margin-top:16px"><a href="${reminderUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Vai ai Promemoria →</a></p>`;
+    } else {
+      title = `🔔 Promemoria in scadenza: ${r.title}`;
+      body = r.due_date ? `Scade il ${formatDateIt(r.due_date)}.` : 'Controlla la tua agenda MyAgenda.';
+      emailHtml = `<h2>${title}</h2><p>${body}</p>`;
     }
 
-    db.prepare('UPDATE reminders SET notified_at = ? WHERE id = ?').run(nowIso(), r.id);
+    await addInAppNotification(user.id, title, body, 'inapp', r.id);
+    if (user.push_notifications) await sendPushToUser(user.id, { title, body, url: reminderUrl });
+    if (user.email_notifications) await sendEmail(user.email, title, emailHtml);
+
+    await db.prepare('UPDATE reminders SET notified_at = ? WHERE id = ?').bind(nowIso(), r.id).run();
     processed++;
   }
-
   return { processed };
 }
 
-/**
- * Genera e invia il riepilogo settimanale/mensile via email.
- * Inviato agli utenti con weekly_summary = 1.
- * Il tipo di digest dipende dal parametro `type`.
- */
 export async function sendDigest(type: 'weekly' | 'monthly' = 'weekly'): Promise<{ sent: number }> {
   const db = getDb();
-  const users = db.prepare('SELECT * FROM users WHERE weekly_summary = 1 AND email_notifications = 1').all() as User[];
+  const { results: users } = await db
+    .prepare('SELECT * FROM users WHERE weekly_summary = 1 AND email_notifications = 1')
+    .all<User>();
 
   const now = new Date();
   const curKey = now.toISOString().slice(0, 7);
@@ -74,78 +65,39 @@ export async function sendDigest(type: 'weekly' | 'monthly' = 'weekly'): Promise
 
   let sent = 0;
   for (const user of users) {
-    const total = monthTotal(user.id, curKey);
-    const catTotals = categoryTotals(user.id, curKey);
-    const cats = listExpenseCategories(user.id);
+    const total = await monthTotal(user.id, curKey);
+    const catTotals = await categoryTotals(user.id, curKey);
+    const cats = await listExpenseCategories(user.id);
     const iconMap: Record<string, string> = { ...EXPENSE_CATEGORY_ICONS };
     for (const c of cats) iconMap[c.name] = c.icon;
 
-    const overdue = db
-      .prepare(
-        `SELECT COUNT(*) AS n FROM reminders
-         WHERE user_id = ? AND status = 'pending' AND due_date < date('now')`
-      )
-      .get(user.id) as { n: number };
-
-    const upcoming = db
-      .prepare(
-        `SELECT COUNT(*) AS n FROM reminders
-         WHERE user_id = ? AND status = 'pending' AND due_date BETWEEN date('now') AND date('now', '+7 days')`
-      )
-      .get(user.id) as { n: number };
+    const overdue = await db
+      .prepare(`SELECT COUNT(*) AS n FROM reminders WHERE user_id = ? AND status = 'pending' AND due_date < date('now')`)
+      .bind(user.id).first<{ n: number }>();
+    const upcoming = await db
+      .prepare(`SELECT COUNT(*) AS n FROM reminders WHERE user_id = ? AND status = 'pending' AND due_date BETWEEN date('now') AND date('now', '+7 days')`)
+      .bind(user.id).first<{ n: number }>();
 
     const catRows = cats
       .filter((c) => (catTotals[c.name] ?? 0) > 0)
-      .map(
-        (c) =>
-          `<tr>
-            <td style="padding:4px 8px">${iconMap[c.name] ?? ''} ${c.name}</td>
-            <td style="padding:4px 8px;text-align:right">${formatCurrency(catTotals[c.name] ?? 0)}</td>
-          </tr>`
-      )
+      .map((c) => `<tr><td>${iconMap[c.name] ?? ''} ${c.name}</td><td style="text-align:right">${formatCurrency(catTotals[c.name] ?? 0)}</td></tr>`)
       .join('');
 
     const html = `
-      <h2>🗓️ Riepilogo MyAgenda — ${label}</h2>
-      <h3>💶 Spese del mese</h3>
-      <p><strong>Totale:</strong> ${formatCurrency(total)}</p>
-      ${catRows ? `<table style="border-collapse:collapse">${catRows}</table>` : '<p>Nessuna spesa registrata.</p>'}
-      <h3>🔔 Promemoria</h3>
-      <p>${overdue.n > 0 ? `⚠️ <strong>${overdue.n}</strong> scaduti da gestire.` : 'Nessun promemoria scaduto.'}</p>
-      <p>${upcoming.n > 0 ? `📅 <strong>${upcoming.n}</strong> in scadenza nei prossimi 7 giorni.` : ''}</p>
-      <hr>
-      <p style="font-size:12px;color:#6b7280">Ricevi questo riepilogo perché hai attivo il riepilogo settimanale su MyAgenda.
-      Puoi disattivarlo dalle <a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/impostazioni">Impostazioni</a>.</p>
+      <h2>📊 Riepilogo ${label}</h2>
+      <p><strong>Spese totali:</strong> ${formatCurrency(total)}</p>
+      ${catRows ? `<table>${catRows}</table>` : ''}
+      <p>📋 Promemoria scaduti: <strong>${overdue?.n ?? 0}</strong> | In scadenza (7gg): <strong>${upcoming?.n ?? 0}</strong></p>
+      <p><a href="${process.env.NEXT_PUBLIC_APP_URL ?? ''}/promemoria">Apri MyAgenda →</a></p>
     `;
 
-    await sendEmail(
-      user.email,
-      `📊 Riepilogo ${type === 'monthly' ? 'mensile' : 'settimanale'} MyAgenda`,
-      html
-    );
+    await sendEmail(user.email, `MyAgenda — Riepilogo ${label}`, html);
     sent++;
   }
-
   return { sent };
 }
 
-/**
- * Master cron entry point: runs all scheduled tasks.
- */
-export async function runCron(): Promise<Record<string, unknown>> {
-  const reminders = await processDueReminders();
-  const recurring = processRecurringExpenses();
-
-  const today = new Date();
-  const isSunday = today.getDay() === 0;
-  const isFirstOfMonth = today.getDate() === 1;
-
-  let digest: { sent: number } = { sent: 0 };
-  if (isFirstOfMonth) {
-    digest = await sendDigest('monthly');
-  } else if (isSunday) {
-    digest = await sendDigest('weekly');
-  }
-
-  return { reminders, recurring, digest };
+export async function runCron(): Promise<{ reminders: number; expenses: number; digest?: number }> {
+  const [rem, exp] = await Promise.all([processDueReminders(), processRecurringExpenses()]);
+  return { reminders: rem.processed, expenses: exp.inserted };
 }

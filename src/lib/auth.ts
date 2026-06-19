@@ -30,7 +30,8 @@ export async function createSessionToken(userId: string): Promise<string> {
 
 export async function setSessionCookie(userId: string): Promise<void> {
   const token = await createSessionToken(userId);
-  cookies().set(COOKIE_NAME, token, {
+  const jar = await cookies();
+  jar.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -39,12 +40,14 @@ export async function setSessionCookie(userId: string): Promise<void> {
   });
 }
 
-export function clearSessionCookie(): void {
-  cookies().delete(COOKIE_NAME);
+export async function clearSessionCookie(): Promise<void> {
+  const jar = await cookies();
+  jar.delete(COOKIE_NAME);
 }
 
 export async function getSessionUserId(): Promise<string | null> {
-  const token = cookies().get(COOKIE_NAME)?.value;
+  const jar = await cookies();
+  const token = jar.get(COOKIE_NAME)?.value;
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey());
@@ -58,17 +61,17 @@ export async function getCurrentUser(): Promise<User | null> {
   const userId = await getSessionUserId();
   if (!userId) return null;
   const db = getDb();
-  const user = db
+  const user = await db
     .prepare(
       `SELECT id, email, name, email_notifications, push_notifications,
               advance_days, weekly_summary, created_at
        FROM users WHERE id = ?`
     )
-    .get(userId) as User | undefined;
+    .bind(userId)
+    .first<User>();
   return user ?? null;
 }
 
-/** Per le route API: restituisce l'utente o lancia una Response 401. */
 export async function requireUser(): Promise<User> {
   const user = await getCurrentUser();
   if (!user) {

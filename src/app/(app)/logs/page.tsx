@@ -3,14 +3,14 @@ import { getCurrentUser } from '@/lib/auth';
 import { listCategories, recentLogs } from '@/lib/queries';
 import LogRow from '@/components/LogRow';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
-export default async function LogsPage({ searchParams }: { searchParams: { cat?: string } }) {
+export default async function LogsPage({ searchParams }: { searchParams: Promise<{ cat?: string }> }) {
   const user = (await getCurrentUser())!;
-  const categories = listCategories(user.id);
-  const activeCat = searchParams.cat || null;
-  const logs = recentLogs(user.id, 200, activeCat);
+  const categories = await listCategories(user.id);
+  const activeCat = (await searchParams).cat || null;
+  const logs = await recentLogs(user.id, 200, activeCat);
 
   // raggruppa per mese
   const groups = new Map<string, typeof logs>();

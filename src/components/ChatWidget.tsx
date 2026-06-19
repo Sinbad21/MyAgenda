@@ -39,7 +39,7 @@ export default function ChatWidget() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ message: text }),
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       const reply = res.ok
         ? [data.reply, ...(data.insights || [])].filter(Boolean).join('\n')
         : data.error || 'Qualcosa è andato storto.';

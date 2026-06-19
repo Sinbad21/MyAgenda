@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { getDb, nowIso } from '@/lib/db';
-import path from 'node:path';
-import fs from 'node:fs';
-import crypto from 'node:crypto';
+import { getDb, getR2, nowIso } from '@/lib/db';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
-const ALLOWED_MIME = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-  'application/pdf',
-]);
+const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'application/pdf']);
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export async function POST(req: Request) {
@@ -24,18 +15,15 @@ export async function POST(req: Request) {
   const logId = url.searchParams.get('logId');
   if (!logId) return NextResponse.json({ error: 'logId richiesto' }, { status: 400 });
 
-  // Verify the log belongs to the user
   const db = getDb();
-  const log = db.prepare('SELECT id FROM logs WHERE id = ? AND user_id = ?').get(logId, user.id);
+  const log = await db.prepare('SELECT id FROM logs WHERE id = ? AND user_id = ?').bind(logId, user.id).first();
   if (!log) return NextResponse.json({ error: 'Log non trovato' }, { status: 404 });
 
   const formData = await req.formData().catch(() => null);
   if (!formData) return NextResponse.json({ error: 'Form data non valido' }, { status: 400 });
 
   const file = formData.get('file');
-  if (!file || typeof file === 'string') {
-    return NextResponse.json({ error: 'Nessun file caricato' }, { status: 400 });
-  }
+  if (!file || typeof file === 'string') return NextResponse.json({ error: 'Nessun file caricato' }, { status: 400 });
 
   if (!ALLOWED_MIME.has(file.type)) {
     return NextResponse.json({ error: 'Tipo file non supportato (solo JPEG, PNG, PDF)' }, { status: 400 });
@@ -47,18 +35,14 @@ export async function POST(req: Request) {
   }
 
   const ext = file.type === 'application/pdf' ? '.pdf' : '.' + file.type.split('/')[1];
-  const safeName = `${crypto.randomUUID()}${ext}`;
+  const key = `uploads/${crypto.randomUUID()}${ext}`;
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+  // Upload to Cloudflare R2
+  const r2 = getR2();
+  await r2.put(key, arrayBuffer, { httpMetadata: { contentType: file.type } });
 
-  const filePath = path.join(uploadDir, safeName);
-  fs.writeFileSync(filePath, Buffer.from(arrayBuffer));
+  // Store the R2 key as the attachment path
+  await db.prepare('UPDATE logs SET attachment_path = ? WHERE id = ?').bind(`/r2/${key}`, logId).run();
 
-  const relativePath = `/uploads/${safeName}`;
-
-  // Update the log with the attachment path
-  db.prepare('UPDATE logs SET attachment_path = ? WHERE id = ?').run(relativePath, logId);
-
-  return NextResponse.json({ ok: true, path: relativePath });
+  return NextResponse.json({ ok: true, path: `/r2/${key}` });
 }

@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getDb, newId, nowIso } from '@/lib/db';
 import { updateVehicleKm } from '@/lib/lookups';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const schema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('create'), name: z.string().trim().min(1).max(60), currentKm: z.number().int().nonnegative().default(0) }),
@@ -21,12 +21,13 @@ export async function POST(req: Request) {
   const db = getDb();
   if (parsed.data.action === 'create') {
     const id = newId();
-    db.prepare('INSERT INTO vehicles (id, user_id, name, current_km, km_updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(
-      id, user.id, parsed.data.name, parsed.data.currentKm, nowIso(), nowIso()
-    );
+    await db
+      .prepare('INSERT INTO vehicles (id, user_id, name, current_km, km_updated_at, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(id, user.id, parsed.data.name, parsed.data.currentKm, nowIso(), nowIso())
+      .run();
     return NextResponse.json({ ok: true, id });
   }
 
-  updateVehicleKm(user.id, parsed.data.id, parsed.data.km);
+  await updateVehicleKm(user.id, parsed.data.id, parsed.data.km);
   return NextResponse.json({ ok: true });
 }

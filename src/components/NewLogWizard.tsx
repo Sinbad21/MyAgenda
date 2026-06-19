@@ -102,7 +102,7 @@ export default function NewLogWizard({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       if (!res.ok) {
         setError(data.error || 'Errore nel salvataggio');
         return;

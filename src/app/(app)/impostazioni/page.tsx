@@ -10,25 +10,25 @@ import ExpenseCategoryManager from '@/components/ExpenseCategoryManager';
 import RecurringManager from '@/components/RecurringManager';
 import ExportImportPanel from '@/components/ExportImportPanel';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export default async function ImpostazioniPage() {
   const user = (await getCurrentUser())!;
-  const vehicles = listVehicles(user.id).map((v) => ({ id: v.id, name: v.name, current_km: v.current_km }));
-  const categories = listCategories(user.id).map((c) => ({
+  const vehicles = (await listVehicles(user.id)).map((v) => ({ id: v.id, name: v.name, current_km: v.current_km }));
+  const categories = (await listCategories(user.id)).map((c) => ({
     id: c.id,
     name: c.name,
     icon: c.icon,
     is_default: c.is_default,
   }));
-  const expCats = listExpenseCategories(user.id).map((c) => ({
+  const expCats = (await listExpenseCategories(user.id)).map((c) => ({
     id: c.id,
     name: c.name,
     icon: c.icon,
     is_default: c.is_default,
   }));
-  const recurring = listRecurring(user.id);
+  const recurring = await listRecurring(user.id);
 
   return (
     <div className="space-y-6">

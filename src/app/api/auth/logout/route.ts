@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { clearSessionCookie } from '@/lib/auth';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function POST() {
-  clearSessionCookie();
+  await clearSessionCookie();
   return NextResponse.json({ ok: true });
 }

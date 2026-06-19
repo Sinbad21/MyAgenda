@@ -40,7 +40,7 @@ export default function RecurringManager({
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ label, amount: val, category, dayOfMonth: day }),
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       if (res.ok) {
         setLabel('');
         setAmount('');

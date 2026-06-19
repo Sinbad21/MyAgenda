@@ -14,7 +14,7 @@ import ExpenseForm from '@/components/ExpenseForm';
 import BudgetEditor from '@/components/BudgetEditor';
 import ExpenseRow from '@/components/ExpenseRow';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export default async function SpesePage() {
@@ -23,18 +23,18 @@ export default async function SpesePage() {
   const curKey = now.toISOString().slice(0, 7);
   const prevKey = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 7);
 
-  const total = monthTotal(user.id, curKey);
-  const prevTotal = monthTotal(user.id, prevKey);
-  const totals = categoryTotals(user.id, curKey);
-  const budgets = budgetStatuses(user.id, curKey);
-  const expenses = listExpenses(user.id, curKey);
-  const daily = dailyTotals(user.id, curKey);
-  const budgetMap = Object.fromEntries(getBudgets(user.id).map((b) => [b.category, b.monthly_limit]));
-  const cats = listExpenseCategories(user.id);
+  const total = await monthTotal(user.id, curKey);
+  const prevTotal = await monthTotal(user.id, prevKey);
+  const totals = await categoryTotals(user.id, curKey);
+  const budgets = await budgetStatuses(user.id, curKey);
+  const expenses = await listExpenses(user.id, curKey);
+  const daily = await dailyTotals(user.id, curKey);
+  const budgetMap = Object.fromEntries((await getBudgets(user.id)).map((b) => [b.category, b.monthly_limit]));
+  const cats = await listExpenseCategories(user.id);
   const catNames = cats.map((c) => c.name);
   const iconMap: Record<string, string> = { ...EXPENSE_CATEGORY_ICONS };
   for (const c of cats) iconMap[c.name] = c.icon;
-  const trend6 = multiMonthTotals(user.id, 6);
+  const trend6 = await multiMonthTotals(user.id, 6);
 
   const maxDaily = Math.max(1, ...daily.map((d) => d.total));
   const maxTrend = Math.max(1, ...trend6.map((m) => m.total));

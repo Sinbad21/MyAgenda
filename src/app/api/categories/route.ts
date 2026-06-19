@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { getDb, newId, nowIso } from '@/lib/db';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const schema = z.object({
   name: z.string().trim().min(1).max(40),
@@ -20,12 +20,13 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
 
   const id = newId();
-  getDb()
+  await getDb()
     .prepare(
       `INSERT INTO categories (id, user_id, name, icon, color, kind, is_default, created_at)
        VALUES (?, ?, ?, ?, ?, ?, 0, ?)`
     )
-    .run(id, user.id, parsed.data.name, parsed.data.icon, parsed.data.color ?? '#64748b', parsed.data.kind, nowIso());
+    .bind(id, user.id, parsed.data.name, parsed.data.icon, parsed.data.color ?? '#64748b', parsed.data.kind, nowIso())
+    .run();
 
   return NextResponse.json({ ok: true, id });
 }

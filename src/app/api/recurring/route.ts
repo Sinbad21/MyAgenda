@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
+import { getDb } from '@/lib/db';
 import { listRecurring, addRecurring, toggleRecurring, deleteRecurring } from '@/lib/expenses';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
 
-  const rec = addRecurring({ userId: user.id, ...parsed.data });
+  const rec = await addRecurring({ userId: user.id, ...parsed.data });
   return NextResponse.json({ ok: true, recurring: rec });
 }
 
@@ -43,10 +44,13 @@ export async function PATCH(req: Request) {
 
   try {
     if (parsed.data.action === 'toggle') {
-      const rec = toggleRecurring(user.id, parsed.data.id);
-      return NextResponse.json({ ok: true, recurring: rec });
+      const db = getDb();
+      const curr = await db.prepare('SELECT active FROM recurring_expenses WHERE id = ? AND user_id = ?').bind(parsed.data.id, user.id).first<{ active: number }>();
+      if (!curr) return NextResponse.json({ error: 'Non trovato' }, { status: 404 });
+      await toggleRecurring(user.id, parsed.data.id, !curr.active);
+      return NextResponse.json({ ok: true });
     }
-    deleteRecurring(user.id, parsed.data.id);
+    await deleteRecurring(user.id, parsed.data.id);
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Errore' }, { status: 400 });

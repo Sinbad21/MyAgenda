@@ -2,7 +2,6 @@ import type { CategoryKind } from './knowledge-base';
 import { getDb, newId, nowIso } from './db';
 import type { ExpenseCustomCategory } from './types';
 
-/** Categorie predefinite con icone (§4). Create per ogni nuovo utente. */
 export interface DefaultCategory {
   name: string;
   icon: string;
@@ -19,72 +18,69 @@ export const DEFAULT_CATEGORIES: DefaultCategory[] = [
   { name: 'Generale', icon: '📋', color: '#64748b', kind: 'general' },
 ];
 
-/** Categorie di spesa predefinite (§9). */
 export const EXPENSE_CATEGORIES = [
-  'Alimentari',
-  'Trasporti',
-  'Salute',
-  'Casa',
-  'Svago',
-  'Altro',
+  'Alimentari', 'Trasporti', 'Salute', 'Casa', 'Svago', 'Altro',
 ] as const;
 
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
 
 export const EXPENSE_CATEGORY_ICONS: Record<string, string> = {
-  Alimentari: '🍎',
-  Trasporti: '⛽',
-  Salute: '💊',
-  Casa: '🏠',
-  Svago: '🎉',
-  Altro: '📦',
+  Alimentari: '🍎', Trasporti: '⛽', Salute: '💊', Casa: '🏠', Svago: '🎉', Altro: '📦',
 };
 
-// ── DB-backed expense categories ──────────────────────────────────────────
-
-/** Ensures default expense categories exist in the DB for a user. */
-export function ensureDefaultExpenseCategories(userId: string): void {
+export async function ensureDefaultExpenseCategories(userId: string): Promise<void> {
   const db = getDb();
   for (const name of EXPENSE_CATEGORIES) {
-    const existing = db
+    const existing = await db
       .prepare('SELECT id FROM expense_categories WHERE user_id = ? AND name = ?')
-      .get(userId, name);
+      .bind(userId, name)
+      .first<{ id: string }>();
     if (!existing) {
-      db.prepare(
-        `INSERT INTO expense_categories (id, user_id, name, icon, color, is_default, created_at) VALUES (?, ?, ?, ?, NULL, 1, ?)`
-      ).run(newId(), userId, name, EXPENSE_CATEGORY_ICONS[name] ?? '📦', nowIso());
+      await db
+        .prepare(
+          `INSERT INTO expense_categories (id, user_id, name, icon, color, is_default, created_at) VALUES (?, ?, ?, ?, NULL, 1, ?)`
+        )
+        .bind(newId(), userId, name, EXPENSE_CATEGORY_ICONS[name] ?? '📦', nowIso())
+        .run();
     }
   }
 }
 
-/** Returns all expense categories for a user (defaults + custom), sorted. */
-export function listExpenseCategories(userId: string): ExpenseCustomCategory[] {
-  ensureDefaultExpenseCategories(userId);
-  return getDb()
+export async function listExpenseCategories(userId: string): Promise<ExpenseCustomCategory[]> {
+  await ensureDefaultExpenseCategories(userId);
+  const { results } = await getDb()
     .prepare('SELECT * FROM expense_categories WHERE user_id = ? ORDER BY is_default DESC, name')
-    .all(userId) as ExpenseCustomCategory[];
+    .bind(userId)
+    .all<ExpenseCustomCategory>();
+  return results;
 }
 
-export function addExpenseCategory(userId: string, name: string, icon: string, color?: string): ExpenseCustomCategory {
+export async function addExpenseCategory(
+  userId: string, name: string, icon: string, color?: string
+): Promise<ExpenseCustomCategory> {
   const db = getDb();
   const id = newId();
-  db.prepare(
-    `INSERT INTO expense_categories (id, user_id, name, icon, color, is_default, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)`
-  ).run(id, userId, name.trim(), icon, color ?? null, nowIso());
-  return db.prepare('SELECT * FROM expense_categories WHERE id = ?').get(id) as ExpenseCustomCategory;
+  await db
+    .prepare(
+      `INSERT INTO expense_categories (id, user_id, name, icon, color, is_default, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)`
+    )
+    .bind(id, userId, name.trim(), icon, color ?? null, nowIso())
+    .run();
+  return (await db.prepare('SELECT * FROM expense_categories WHERE id = ?').bind(id).first<ExpenseCustomCategory>())!;
 }
 
-export function deleteExpenseCategory(userId: string, categoryId: string): void {
+export async function deleteExpenseCategory(userId: string, categoryId: string): Promise<void> {
   const db = getDb();
-  const cat = db
+  const cat = await db
     .prepare('SELECT * FROM expense_categories WHERE id = ? AND user_id = ?')
-    .get(categoryId, userId) as ExpenseCustomCategory | undefined;
+    .bind(categoryId, userId)
+    .first<ExpenseCustomCategory>();
   if (!cat) throw new Error('Categoria non trovata');
   if (cat.is_default) throw new Error('Non puoi eliminare una categoria predefinita');
-  db.prepare('DELETE FROM expense_categories WHERE id = ?').run(categoryId);
+  await db.prepare('DELETE FROM expense_categories WHERE id = ?').bind(categoryId).run();
 }
 
-/** Returns all category names (for validation): defaults + user-defined. */
-export function expenseCategoryNames(userId: string): string[] {
-  return listExpenseCategories(userId).map((c) => c.name);
+export async function expenseCategoryNames(userId: string): Promise<string[]> {
+  const cats = await listExpenseCategories(userId);
+  return cats.map((c) => c.name);
 }

@@ -19,7 +19,7 @@ export default function ExportImportPanel() {
         headers: { 'content-type': 'application/json' },
         body: text,
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       if (res.ok) {
         setImportMsg(`✓ Importati: ${data.expenses} spese, ${data.logs} log.${data.errors?.length ? ` Errori: ${data.errors.length}` : ''}`);
       } else {

@@ -25,7 +25,7 @@ export default function ShareForm({ categories }: { categories: Cat[] }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ resourceType: 'category', resourceId, email }),
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       setMsg(
         res.ok
           ? data.linked

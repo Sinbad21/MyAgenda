@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { listExpenseCategories, addExpenseCategory, deleteExpenseCategory } from '@/lib/categories';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function GET() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
-  const categories = listExpenseCategories(user.id);
+  const categories = await listExpenseCategories(user.id);
   return NextResponse.json({ categories });
 }
 
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
 
   try {
-    const cat = addExpenseCategory(user.id, parsed.data.name, parsed.data.icon, parsed.data.color);
+    const cat = await addExpenseCategory(user.id, parsed.data.name, parsed.data.icon, parsed.data.color);
     return NextResponse.json({ ok: true, category: cat });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Errore' }, { status: 400 });
@@ -37,11 +37,11 @@ export async function DELETE(req: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
 
-  const { id } = await req.json().catch(() => ({}));
+  const { id } = await req.json().catch(() => ({} as any)) as { id?: string };
   if (!id) return NextResponse.json({ error: 'id richiesto' }, { status: 400 });
 
   try {
-    deleteExpenseCategory(user.id, id);
+    await deleteExpenseCategory(user.id, id);
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Errore' }, { status: 400 });

@@ -1,9 +1,8 @@
 /**
- * Inizializza il database SQLite (crea le tabelle se non esistono).
- * Uso: npm run db:init
+ * Inizializza il database D1 (usa le migrations in migrations/).
+ * Uso: npx wrangler d1 execute myagenda-db --file=migrations/0001_init.sql
  */
-import { getDb } from '../src/lib/db';
+console.log('Per inizializzare D1, esegui:');
+console.log('  npx wrangler d1 create myagenda-db');
+console.log('  npx wrangler d1 execute myagenda-db --file=migrations/0001_init.sql');
 
-const db = getDb();
-const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
-console.log('✅ Database inizializzato. Tabelle:', tables.map((t: any) => t.name).join(', '));

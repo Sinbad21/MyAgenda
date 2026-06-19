@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { exportExpensesCSV, exportLogsCSV, exportAllJSON, importFromJSON } from '@/lib/export';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const exportSchema = z.object({
   format: z.enum(['csv-expenses', 'csv-logs', 'json']),
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'format non valido (csv-expenses|csv-logs|json)' }, { status: 400 });
 
   if (parsed.data.format === 'csv-expenses') {
-    const csv = exportExpensesCSV(user.id);
+    const csv = await exportExpensesCSV(user.id);
     return new Response(csv, {
       headers: {
         'content-type': 'text/csv; charset=utf-8',
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
     });
   }
   if (parsed.data.format === 'csv-logs') {
-    const csv = exportLogsCSV(user.id);
+    const csv = await exportLogsCSV(user.id);
     return new Response(csv, {
       headers: {
         'content-type': 'text/csv; charset=utf-8',
@@ -36,7 +36,7 @@ export async function GET(req: Request) {
       },
     });
   }
-  const json = exportAllJSON(user.id);
+  const json = await exportAllJSON(user.id);
   return new Response(json, {
     headers: {
       'content-type': 'application/json; charset=utf-8',
@@ -52,6 +52,6 @@ export async function POST(req: Request) {
   const body = await req.text().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Body vuoto' }, { status: 400 });
 
-  const result = importFromJSON(user.id, body);
+  const result = await importFromJSON(user.id, body);
   return NextResponse.json({ ok: true, ...result });
 }

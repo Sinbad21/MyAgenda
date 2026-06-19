@@ -11,7 +11,7 @@ import NotificationBanner from '@/components/NotificationBanner';
 import { formatCurrency, formatDateIt, relativeDue } from '@/lib/format';
 import { EXPENSE_CATEGORY_ICONS } from '@/lib/categories';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 const BAR_COLORS: Record<string, string> = {
@@ -25,10 +25,10 @@ const BAR_COLORS: Record<string, string> = {
 
 export default async function DashboardPage() {
   const user = (await getCurrentUser())!;
-  const groups = groupedReminders(user.id);
-  const logs = recentLogs(user.id, 8);
-  const summaries = categorySummaries(user.id);
-  const exp = expenseWidget(user.id);
+  const groups = await groupedReminders(user.id);
+  const logs = await recentLogs(user.id, 8);
+  const summaries = await categorySummaries(user.id);
+  const exp = await expenseWidget(user.id);
 
   const upcoming = [...groups.today, ...groups.week, ...groups.month];
   const maxCat = Math.max(1, ...exp.byCategory.map((c) => c.total));

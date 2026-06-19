@@ -26,7 +26,7 @@ export default function RicercaPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
+      const data = await res.json() as any;
       setResults(data.results ?? []);
     } finally {
       setLoading(false);

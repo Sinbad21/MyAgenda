@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { listNotifications, markNotificationsRead } from '@/lib/notifications';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -13,6 +13,6 @@ export async function GET() {
 export async function POST() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
-  markNotificationsRead(user.id);
+  await markNotificationsRead(user.id);
   return NextResponse.json({ ok: true });
 }

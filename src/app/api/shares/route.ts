@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { getDb, newId, nowIso } from '@/lib/db';
 import { sendEmail } from '@/lib/notifications';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const schema = z.object({
   resourceType: z.enum(['category', 'log']),
@@ -22,17 +22,19 @@ export async function POST(req: Request) {
   const { resourceType, resourceId, email } = parsed.data;
   const db = getDb();
 
-  // verifica che la risorsa appartenga all'utente
   const table = resourceType === 'category' ? 'categories' : 'logs';
-  const owned = db.prepare(`SELECT id FROM ${table} WHERE id = ? AND user_id = ?`).get(resourceId, user.id);
+  const owned = await db.prepare(`SELECT id FROM ${table} WHERE id = ? AND user_id = ?`).bind(resourceId, user.id).first();
   if (!owned) return NextResponse.json({ error: 'Risorsa non trovata' }, { status: 404 });
 
-  const target = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase()) as { id: string } | undefined;
+  const target = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email.toLowerCase()).first<{ id: string }>();
 
-  db.prepare(
-    `INSERT INTO shares (id, owner_id, resource_type, resource_id, shared_with_email, shared_with_user_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
-  ).run(newId(), user.id, resourceType, resourceId, email.toLowerCase(), target?.id ?? null, nowIso());
+  await db
+    .prepare(
+      `INSERT INTO shares (id, owner_id, resource_type, resource_id, shared_with_email, shared_with_user_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(newId(), user.id, resourceType, resourceId, email.toLowerCase(), target?.id ?? null, nowIso())
+    .run();
 
   await sendEmail(
     email,

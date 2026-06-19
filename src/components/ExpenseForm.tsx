@@ -25,7 +25,7 @@ export default function ExpenseForm({ categories }: { categories: string[] }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ amount: value, category, date, note }),
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       if (res.ok) {
         setAmount('');
         setNote('');

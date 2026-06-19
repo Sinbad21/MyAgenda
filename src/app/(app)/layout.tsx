@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth';
 import NavBar from '@/components/NavBar';
 import ChatWidget from '@/components/ChatWidget';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {

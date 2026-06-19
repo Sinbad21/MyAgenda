@@ -1,10 +1,12 @@
+import { setupDevPlatform } from '@cloudflare/next-on-pages/next-dev';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // better-sqlite3 is a native module and must not be bundled by webpack.
-  experimental: {
-    serverComponentsExternalPackages: ['better-sqlite3'],
-  },
 };
+
+if (process.env.NODE_ENV === 'development') {
+  await setupDevPlatform();
+}
 
 export default nextConfig;

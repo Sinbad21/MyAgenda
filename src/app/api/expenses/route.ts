@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { addExpense, budgetStatuses, monthTotal, listExpenses } from '@/lib/expenses';
 import { expenseCategoryNames } from '@/lib/categories';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const schema = z.object({
   amount: z.number().positive(),
@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const month = searchParams.get('month') ?? undefined;
-  const expenses = listExpenses(user.id, month);
+  const expenses = await listExpenses(user.id, month);
   return NextResponse.json({ expenses });
 }
 
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
 
-  const expense = addExpense({
+  const expense = await addExpense({
     userId: user.id,
     amount: parsed.data.amount,
     category: parsed.data.category,
@@ -37,6 +37,7 @@ export async function POST(req: Request) {
     note: parsed.data.note ?? null,
   });
 
-  const status = budgetStatuses(user.id).find((b) => b.category === parsed.data.category) ?? null;
-  return NextResponse.json({ ok: true, expense, monthTotal: monthTotal(user.id), budget: status });
+  const allStatuses = await budgetStatuses(user.id);
+  const status = allStatuses.find((b) => b.category === parsed.data.category) ?? null;
+  return NextResponse.json({ ok: true, expense, monthTotal: await monthTotal(user.id), budget: status });
 }

@@ -24,7 +24,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(isRegister ? { email, password, name } : { email, password }),
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       if (!res.ok) {
         setError(data.error || 'Si è verificato un errore');
         return;

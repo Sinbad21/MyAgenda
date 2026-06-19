@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
 import { globalSearch } from '@/lib/search';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 export async function GET(req: Request) {
   const user = await getCurrentUser();
@@ -12,6 +12,6 @@ export async function GET(req: Request) {
   const q = (searchParams.get('q') ?? '').trim();
   if (!q) return NextResponse.json({ results: [] });
 
-  const results = globalSearch(user.id, q);
+  const results = await globalSearch(user.id, q);
   return NextResponse.json({ results });
 }

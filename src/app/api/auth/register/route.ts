@@ -4,7 +4,7 @@ import { getDb, newId, nowIso } from '@/lib/db';
 import { hashPassword, setSessionCookie } from '@/lib/auth';
 import { provisionNewUser } from '@/lib/provisioning';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const schema = z.object({
   email: z.string().email('Email non valida'),
@@ -21,21 +21,22 @@ export async function POST(req: Request) {
   const { email, password, name } = parsed.data;
   const db = getDb();
 
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase());
-  if (existing) {
-    return NextResponse.json({ error: 'Esiste già un account con questa email' }, { status: 409 });
-  }
+  const existing = await db.prepare('SELECT id FROM users WHERE email = ?').bind(email.toLowerCase()).first();
+  if (existing) return NextResponse.json({ error: 'Esiste già un account con questa email' }, { status: 409 });
 
   const id = newId();
   const hash = await hashPassword(password);
-  db.prepare(
-    `INSERT INTO users (id, email, password_hash, name, created_at) VALUES (?, ?, ?, ?, ?)`
-  ).run(id, email.toLowerCase(), hash, name ?? null, nowIso());
+  await db
+    .prepare(`INSERT INTO users (id, email, password_hash, name, created_at) VALUES (?, ?, ?, ?, ?)`)
+    .bind(id, email.toLowerCase(), hash, name ?? null, nowIso())
+    .run();
 
-  provisionNewUser(id);
+  await provisionNewUser(id);
 
-  // Collega eventuali condivisioni in attesa indirizzate a questa email.
-  db.prepare('UPDATE shares SET shared_with_user_id = ? WHERE shared_with_email = ?').run(id, email.toLowerCase());
+  await db
+    .prepare('UPDATE shares SET shared_with_user_id = ? WHERE shared_with_email = ?')
+    .bind(id, email.toLowerCase())
+    .run();
 
   await setSessionCookie(id);
   return NextResponse.json({ ok: true });

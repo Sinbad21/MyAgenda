@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { completeReminder, stopRecurrence, cancelReminder, snoozeReminder, updateReminder } from '@/lib/reminders';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const actionSchema = z.object({
   id: z.string().min(1),
@@ -31,24 +31,27 @@ export async function POST(req: Request) {
   const { id, action, note, snoozeDays, patch } = parsed.data;
   try {
     if (action === 'complete') {
-      const result = completeReminder(user.id, id, note);
+      const result = await completeReminder(user.id, id, note);
       return NextResponse.json({ ok: true, ...result });
     }
     if (action === 'stop') {
-      stopRecurrence(user.id, id);
+      await stopRecurrence(user.id, id);
       return NextResponse.json({ ok: true });
     }
     if (action === 'cancel') {
-      cancelReminder(user.id, id);
+      await cancelReminder(user.id, id);
       return NextResponse.json({ ok: true });
     }
     if (action === 'snooze') {
       const days = snoozeDays ?? 1;
-      const reminder = snoozeReminder(user.id, id, days);
+      const reminder = await snoozeReminder(user.id, id, days);
       return NextResponse.json({ ok: true, reminder });
     }
     if (action === 'update' && patch) {
-      const reminder = updateReminder(user.id, id, patch);
+      const reminder = await updateReminder(user.id, id, {
+        ...patch,
+        recurring: patch.recurring !== undefined ? (patch.recurring ? 1 : 0) : undefined,
+      });
       return NextResponse.json({ ok: true, reminder });
     }
     return NextResponse.json({ error: 'Azione non valida' }, { status: 400 });

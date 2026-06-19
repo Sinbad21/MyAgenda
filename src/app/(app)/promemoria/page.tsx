@@ -3,13 +3,13 @@ import { getCurrentUser } from '@/lib/auth';
 import { groupedReminders, pendingReminderViews } from '@/lib/queries';
 import ReminderCard from '@/components/ReminderCard';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export default async function PromemoriPage() {
   const user = (await getCurrentUser())!;
-  const groups = groupedReminders(user.id);
-  const all = pendingReminderViews(user.id);
+  const groups = await groupedReminders(user.id);
+  const all = await pendingReminderViews(user.id);
 
   const sections = [
     { key: 'overdue', label: '⚠️ Scaduti', items: groups.overdue, cls: 'text-red-600' },

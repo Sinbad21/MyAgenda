@@ -8,7 +8,7 @@ import { expenseCategoryNames } from '@/lib/categories';
 import { todayIso } from '@/lib/format';
 import { checkRateLimit } from '@/lib/rate-limit';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const schema = z.object({ message: z.string().min(1).max(2000) });
 
@@ -23,8 +23,8 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Messaggio non valido' }, { status: 400 });
 
-  const vehicles = listVehicles(user.id).map((v) => ({ id: v.id, name: v.name, current_km: v.current_km }));
-  const expenseCategories = expenseCategoryNames(user.id) as any;
+  const vehicles = (await listVehicles(user.id)).map((v) => ({ id: v.id, name: v.name, current_km: v.current_km }));
+  const expenseCategories = await expenseCategoryNames(user.id) as any;
   const result = await interpretMessage(parsed.data.message, {
     todayIso: todayIso(),
     vehicles,
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     });
   }
 
-  const exec = executeActions(user.id, result.actions);
+  const exec = await executeActions(user.id, result.actions);
   return NextResponse.json({
     reply: result.reply,
     needs_clarification: false,

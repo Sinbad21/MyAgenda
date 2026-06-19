@@ -6,7 +6,7 @@ import { createReminder } from '@/lib/reminders';
 import { addExpense } from '@/lib/expenses';
 import { addMonthsIso, todayIso } from '@/lib/format';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const schema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
   db.prepare(
     `INSERT INTO logs (id, user_id, category_id, title, notes, event_date, vehicle_id, km_at_event, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
+  ).bind(
     logId,
     user.id,
     d.categoryId ?? null,
@@ -58,14 +58,14 @@ export async function POST(req: Request) {
     d.vehicleId ?? null,
     d.kmAtEvent ?? null,
     nowIso()
-  );
+  ).run();
 
   let reminderId: string | null = null;
   if (d.reminder?.enabled) {
     const r = d.reminder;
     const dueDate =
       r.dueDate || (r.intervalMonths ? addMonthsIso(eventDate, r.intervalMonths) : null);
-    const reminder = createReminder({
+    const reminder = await createReminder({
       userId: user.id,
       logId,
       categoryId: d.categoryId ?? null,
@@ -82,7 +82,7 @@ export async function POST(req: Request) {
   }
 
   if (d.expense) {
-    addExpense({
+    await addExpense({
       userId: user.id,
       amount: d.expense.amount,
       category: d.expense.category,

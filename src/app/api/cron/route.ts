@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runCron } from '@/lib/cron';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 function authorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET;

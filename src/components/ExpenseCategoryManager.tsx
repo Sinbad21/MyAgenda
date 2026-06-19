@@ -28,7 +28,7 @@ export default function ExpenseCategoryManager({ categories }: { categories: Cat
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), icon }),
       });
-      const data = await res.json();
+      const data = await res.json() as any;
       if (res.ok) {
         setName('');
         setMsg('Categoria aggiunta ✓');

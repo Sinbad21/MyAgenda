@@ -3,14 +3,14 @@ import { listCategories, listVehicles } from '@/lib/queries';
 import { expenseCategoryNames } from '@/lib/categories';
 import NewLogWizard from '@/components/NewLogWizard';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 export const dynamic = 'force-dynamic';
 
 export default async function NuovoPage() {
   const user = (await getCurrentUser())!;
-  const categories = listCategories(user.id).map((c) => ({ id: c.id, name: c.name, icon: c.icon, kind: c.kind }));
-  const vehicles = listVehicles(user.id).map((v) => ({ id: v.id, name: v.name, current_km: v.current_km }));
-  const expenseCategories = expenseCategoryNames(user.id);
+  const categories = (await listCategories(user.id)).map((c) => ({ id: c.id, name: c.name, icon: c.icon, kind: c.kind }));
+  const vehicles = (await listVehicles(user.id)).map((v) => ({ id: v.id, name: v.name, current_km: v.current_km }));
+  const expenseCategories = await expenseCategoryNames(user.id);
 
   return (
     <div>

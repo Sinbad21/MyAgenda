@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
 import { getDb, newId, nowIso } from '@/lib/db';
 
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const schema = z.object({
   endpoint: z.string().url(),
@@ -19,11 +19,12 @@ export async function POST(req: Request) {
 
   const { endpoint, keys } = parsed.data;
   const db = getDb();
-  const existing = db.prepare('SELECT id FROM push_subscriptions WHERE endpoint = ?').get(endpoint);
+  const existing = await db.prepare('SELECT id FROM push_subscriptions WHERE endpoint = ?').bind(endpoint).first();
   if (!existing) {
-    db.prepare(
-      'INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(newId(), user.id, endpoint, keys.p256dh, keys.auth, nowIso());
+    await db
+      .prepare('INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(newId(), user.id, endpoint, keys.p256dh, keys.auth, nowIso())
+      .run();
   }
   return NextResponse.json({ ok: true });
 }
