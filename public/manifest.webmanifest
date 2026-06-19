@@ -1,0 +1,18 @@
+{
+  "name": "MyAgenda",
+  "short_name": "MyAgenda",
+  "description": "Diario personale, promemoria intelligenti e tracker spese",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#225aec",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
