@@ -8,7 +8,7 @@ pages_build_output_dir = ".vercel/output/static"
 [[d1_databases]]
 binding = "DB"
 database_name = "myagenda-db"
-database_id = "PLACEHOLDER_DA_SOSTITUIRE"
+database_id = "25f38048-8a56-40a7-9ef2-70a19d96ce7d"
 
 [[r2_buckets]]
 binding = "R2"
