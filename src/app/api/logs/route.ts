@@ -4,7 +4,8 @@ import { getCurrentUser } from '@/lib/auth';
 import { getDb, newId, nowIso } from '@/lib/db';
 import { createReminder } from '@/lib/reminders';
 import { addExpense } from '@/lib/expenses';
-import { addMonthsIso, todayIso } from '@/lib/format';
+import { addMonthsIso, todayIso, formatDateIt } from '@/lib/format';
+import { sendEmail } from '@/lib/notifications';
 
 export const runtime = 'edge';
 
@@ -81,6 +82,24 @@ export async function POST(req: Request) {
       advanceDays: r.advanceDays,
     });
     reminderId = reminder.id;
+    // Email di conferma immediata
+    if (user.email_notifications !== 0) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://myagenda.pages.dev';
+      const dueLine = reminder.due_date
+        ? '<p>Data: <strong>' + formatDateIt(reminder.due_date) + '</strong></p>'
+        : '';
+      const advLine = reminder.advance_days
+        ? '<p>Ti avviseremo <strong>' + reminder.advance_days + ' giorni prima</strong> della scadenza.</p>'
+        : '';
+      const html =
+        '<div style="font-family:sans-serif;max-width:480px;margin:0 auto">' +
+        '<h2 style="color:#2563eb">Promemoria salvato</h2>' +
+        '<p>Il promemoria <strong>&quot;' + d.title + '&quot;</strong> e stato creato con successo.</p>' +
+        dueLine + advLine +
+        '<p style="margin-top:24px"><a href="' + appUrl + '/promemoria" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Vai ai Promemoria</a></p>' +
+        '</div>';
+      sendEmail(user.email, 'Promemoria: ' + d.title, html).catch(() => {});
+    }
   }
 
   if (d.expense) {
