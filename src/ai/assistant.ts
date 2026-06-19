@@ -26,11 +26,20 @@ export interface ParsedResult {
   source: 'llm' | 'rules';
 }
 
+export interface ConvMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
 /** Punto d'ingresso: usa Claude se configurato, altrimenti il parser a regole. */
-export async function interpretMessage(text: string, ctx: PromptContext): Promise<ParsedResult> {
+export async function interpretMessage(
+  text: string,
+  ctx: PromptContext,
+  history: ConvMessage[] = []
+): Promise<ParsedResult> {
   if (aiConfig.enabled) {
     try {
-      return await interpretWithClaude(text, ctx);
+      return await interpretWithClaude(text, ctx, history);
     } catch (err) {
       console.error('[assistant] LLM error, uso fallback a regole:', err);
     }
@@ -39,15 +48,19 @@ export async function interpretMessage(text: string, ctx: PromptContext): Promis
 }
 
 // ── Claude ───────────────────────────────────────────────────────────────
-async function interpretWithClaude(text: string, ctx: PromptContext): Promise<ParsedResult> {
+async function interpretWithClaude(text: string, ctx: PromptContext, history: ConvMessage[]): Promise<ParsedResult> {
   const client = new Anthropic({ apiKey: aiConfig.apiKey });
   const system = buildSystemPrompt(ctx);
+
+  const historyMessages: Anthropic.MessageParam[] = history
+    .slice(-10)
+    .map((m) => ({ role: m.role, content: m.text }));
 
   const response = await client.messages.create({
     model: aiConfig.model,
     max_tokens: 1024,
     system,
-    messages: [{ role: 'user', content: text }],
+    messages: [...historyMessages, { role: 'user', content: text }],
   });
 
   const raw = response.content

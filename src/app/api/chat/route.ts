@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getCurrentUser } from '@/lib/auth';
-import { interpretMessage } from '@/ai/assistant';
+import { interpretMessage, type ConvMessage } from '@/ai/assistant';
 import { executeActions } from '@/lib/chat-actions';
 import { listVehicles } from '@/lib/queries';
 import { expenseCategoryNames } from '@/lib/categories';
@@ -10,7 +10,10 @@ import { checkRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'edge';
 
-const schema = z.object({ message: z.string().min(1).max(2000) });
+const schema = z.object({
+  message: z.string().min(1).max(2000),
+  history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(2000) })).max(20).optional(),
+});
 
 export async function POST(req: Request) {
   const user = await getCurrentUser();
@@ -29,7 +32,7 @@ export async function POST(req: Request) {
     todayIso: todayIso(),
     vehicles,
     expenseCategories,
-  });
+  }, (parsed.data.history ?? []) as ConvMessage[]);
 
   if (result.needs_clarification || result.actions.length === 0) {
     return NextResponse.json({

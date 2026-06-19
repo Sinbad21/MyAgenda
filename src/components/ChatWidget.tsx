@@ -31,13 +31,17 @@ export default function ChatWidget() {
     const text = input.trim();
     if (!text || busy) return;
     setInput('');
-    setMessages((m) => [...m, { role: 'user', text }]);
+    const updatedMessages = [...messages, { role: 'user' as const, text }];
+    setMessages(updatedMessages);
     setBusy(true);
     try {
+      const history = updatedMessages
+        .slice(1, -1)
+        .map((m) => ({ role: m.role, text: m.text }));
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, history }),
       });
       const data = await res.json() as any;
       const reply = res.ok
