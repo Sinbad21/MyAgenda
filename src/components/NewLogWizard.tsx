@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { suggestInterval } from '@/lib/knowledge-base';
 import { addMonthsIso, todayIso } from '@/lib/format';
+import LocationPicker from './LocationPicker';
 
 interface Cat {
   id: string;
@@ -35,6 +36,7 @@ export default function NewLogWizard({
   const [title, setTitle] = useState('');
   const [eventDate, setEventDate] = useState(todayIso());
   const [notes, setNotes] = useState('');
+  const [location, setLocation] = useState('');
   const [vehicleId, setVehicleId] = useState<string>('');
   const [kmAtEvent, setKmAtEvent] = useState<string>('');
 
@@ -82,6 +84,7 @@ export default function NewLogWizard({
         categoryId: category?.id ?? null,
         eventDate,
         notes,
+        location: location.trim() || null,
         vehicleId: isVehicle && vehicleId ? vehicleId : null,
         kmAtEvent: isVehicle && kmAtEvent ? Number(kmAtEvent) : null,
         reminder: remEnabled
@@ -220,6 +223,11 @@ export default function NewLogWizard({
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Dettagli, ricevuta, officina…"
               />
+            </div>
+
+            <div>
+              <label className="label">Luogo</label>
+              <LocationPicker value={location} onChange={setLocation} />
             </div>
 
             <div>

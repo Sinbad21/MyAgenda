@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDateIt } from '@/lib/format';
+import LocationPicker from './LocationPicker';
 
 interface LogData {
   id: string;
   title: string;
   notes: string | null;
+  location: string | null;
   event_date: string;
   attachment_path: string | null;
   category_name: string | null;
@@ -20,6 +22,7 @@ export default function LogRow({ log }: { log: LogData }) {
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState(log.title);
   const [notes, setNotes] = useState(log.notes ?? '');
+  const [location, setLocation] = useState(log.location ?? '');
   const [eventDate, setEventDate] = useState(log.event_date);
   const [attachFile, setAttachFile] = useState<File | null>(null);
 
@@ -29,7 +32,7 @@ export default function LogRow({ log }: { log: LogData }) {
       const res = await fetch(`/api/logs/${log.id}`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ title, notes: notes || null, eventDate }),
+        body: JSON.stringify({ title, notes: notes || null, location: location.trim() || null, eventDate }),
       });
       if (res.ok) {
         // Upload new attachment if provided
@@ -75,6 +78,10 @@ export default function LogRow({ log }: { log: LogData }) {
           <textarea className="input text-sm py-1 min-h-[60px]" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
         <div>
+          <label className="label text-xs">Luogo</label>
+          <LocationPicker value={location} onChange={setLocation} />
+        </div>
+        <div>
           <label className="label text-xs">Sostituisci allegato</label>
           <input
             type="file"
@@ -118,6 +125,12 @@ export default function LogRow({ log }: { log: LogData }) {
           {formatDateIt(log.event_date)}
         </p>
         {log.notes && <p className="mt-1 text-xs text-slate-600 line-clamp-2">{log.notes}</p>}
+        {log.location && (
+          <p className="mt-0.5 text-xs text-slate-500 flex items-center gap-1">
+            <span>📍</span>
+            <span className="truncate">{log.location}</span>
+          </p>
+        )}
       </div>
       <div className="flex flex-col gap-1 text-[11px] text-slate-400">
         <button onClick={() => setEditing(true)} className="hover:text-brand-600">

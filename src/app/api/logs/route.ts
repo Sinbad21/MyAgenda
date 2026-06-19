@@ -13,6 +13,7 @@ const schema = z.object({
   categoryId: z.string().nullable().optional(),
   eventDate: z.string().optional(),
   notes: z.string().max(4000).optional(),
+  location: z.string().max(500).optional().nullable(),
   vehicleId: z.string().nullable().optional(),
   kmAtEvent: z.number().int().nonnegative().nullable().optional(),
   reminder: z
@@ -46,14 +47,15 @@ export async function POST(req: Request) {
   const logId = newId();
 
   db.prepare(
-    `INSERT INTO logs (id, user_id, category_id, title, notes, event_date, vehicle_id, km_at_event, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO logs (id, user_id, category_id, title, notes, location, event_date, vehicle_id, km_at_event, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     logId,
     user.id,
     d.categoryId ?? null,
     d.title,
     d.notes ?? null,
+    d.location ?? null,
     eventDate,
     d.vehicleId ?? null,
     d.kmAtEvent ?? null,

@@ -37,6 +37,7 @@ export interface LogEntry {
   category_id: string | null;
   title: string;
   notes: string | null;
+  location: string | null;
   event_date: string;
   attachment_path: string | null;
   vehicle_id: string | null;

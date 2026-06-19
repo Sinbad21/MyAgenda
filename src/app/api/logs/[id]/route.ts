@@ -9,6 +9,7 @@ export const runtime = 'edge';
 const patchSchema = z.object({
   title: z.string().trim().min(1).max(120).optional(),
   notes: z.string().max(4000).optional().nullable(),
+  location: z.string().max(500).optional().nullable(),
   eventDate: z.string().optional(),
   kmAtEvent: z.number().int().nonnegative().nullable().optional(),
 });
@@ -30,10 +31,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
   const d = parsed.data;
   await db
-    .prepare(`UPDATE logs SET title = ?, notes = ?, event_date = ?, km_at_event = ? WHERE id = ?`)
+    .prepare(`UPDATE logs SET title = ?, notes = ?, location = ?, event_date = ?, km_at_event = ? WHERE id = ?`)
     .bind(
       d.title ?? log.title,
       d.notes !== undefined ? d.notes : log.notes,
+      d.location !== undefined ? d.location : log.location,
       d.eventDate ?? log.event_date,
       d.kmAtEvent !== undefined ? d.kmAtEvent : log.km_at_event,
       log.id
