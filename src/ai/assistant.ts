@@ -52,10 +52,18 @@ async function interpretWithClaude(text: string, ctx: PromptContext, history: Co
   const client = new Anthropic({ apiKey: aiConfig.apiKey });
   const system = buildSystemPrompt(ctx);
 
+<<<<<<< HEAD
+  // Costruisce la storia con max 10 turni precedenti (per evitare token eccessivi)
   const historyMessages: Anthropic.MessageParam[] = history
     .slice(-10)
     .map((m) => ({ role: m.role, content: m.text }));
 
+=======
+  const historyMessages: Anthropic.MessageParam[] = history
+    .slice(-10)
+    .map((m) => ({ role: m.role, content: m.text }));
+
+>>>>>>> e969c0d95d1a012c1fa5b7f471fedf326e06715b
   const response = await client.messages.create({
     model: aiConfig.model,
     max_tokens: 1024,
