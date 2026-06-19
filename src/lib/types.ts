@@ -56,6 +56,7 @@ export interface Reminder {
   title: string;
   trigger_type: TriggerType;
   due_date: string | null;
+  due_time: string | null;
   due_km: number | null;
   vehicle_id: string | null;
   interval_months: number | null;

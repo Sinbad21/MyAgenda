@@ -6,7 +6,7 @@ const DEFAULT_KM_INTERVAL = 15000;
 
 export interface CreateReminderInput {
   userId: string; logId?: string | null; categoryId?: string | null; title: string;
-  triggerType?: 'time' | 'km'; dueDate?: string | null; dueKm?: number | null;
+  triggerType?: 'time' | 'km'; dueDate?: string | null; dueTime?: string | null; dueKm?: number | null;
   vehicleId?: string | null; intervalMonths?: number | null; recurring?: boolean; advanceDays?: number;
 }
 
@@ -16,12 +16,12 @@ export async function createReminder(input: CreateReminderInput): Promise<Remind
   await db
     .prepare(
       `INSERT INTO reminders
-        (id, user_id, log_id, category_id, title, trigger_type, due_date, due_km,
+        (id, user_id, log_id, category_id, title, trigger_type, due_date, due_time, due_km,
          vehicle_id, interval_months, recurring, advance_days, status, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
     )
     .bind(id, input.userId, input.logId ?? null, input.categoryId ?? null, input.title,
-          input.triggerType ?? 'time', input.dueDate ?? null, input.dueKm ?? null,
+          input.triggerType ?? 'time', input.dueDate ?? null, input.dueTime ?? null, input.dueKm ?? null,
           input.vehicleId ?? null, input.intervalMonths ?? null,
           input.recurring ? 1 : 0, input.advanceDays ?? 7, nowIso())
     .run();
