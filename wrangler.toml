@@ -8,12 +8,8 @@ pages_build_output_dir = ".vercel/output/static"
 [[d1_databases]]
 binding = "DB"
 database_name = "myagenda-db"
-database_id = "25f38048-8a56-40a7-9ef2-70a19d96ce7d"
+database_id = "PLACEHOLDER_DA_SOSTITUIRE"
 
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "myagenda-uploads"
-
-# Cron trigger ogni 5 minuti — attiva /api/cron via scheduled worker
-[triggers]
-crons = ["*/5 * * * *"]

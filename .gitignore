@@ -31,9 +31,6 @@ npm-debug.log*
 # vercel
 .vercel
 
-# wrangler local state
-.wrangler/
-
 # typescript
 *.tsbuildinfo
 
