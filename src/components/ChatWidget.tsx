@@ -35,17 +35,10 @@ export default function ChatWidget() {
     setMessages(updatedMessages);
     setBusy(true);
     try {
-<<<<<<< HEAD
-      // Invia la storia (escluso il messaggio di benvenuto iniziale e il messaggio corrente)
-      const history = updatedMessages
-        .slice(1, -1)  // escludi benvenuto e messaggio corrente
-        .map((m) => ({ role: m.role, text: m.text }));
-
-=======
+      // Invia la storia (escluso il messaggio di benvenuto iniziale e quello corrente)
       const history = updatedMessages
         .slice(1, -1)
         .map((m) => ({ role: m.role, text: m.text }));
->>>>>>> e969c0d95d1a012c1fa5b7f471fedf326e06715b
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 
 const LINKS = [
   { href: '/', label: 'Dashboard', icon: '🏠' },
+  { href: '/calendario', label: 'Calendario', icon: '📅' },
   { href: '/nuovo', label: 'Nuovo', icon: '➕' },
   { href: '/promemoria', label: 'Promemoria', icon: '🔔' },
   { href: '/logs', label: 'Storico', icon: '📜' },
@@ -57,8 +58,8 @@ export default function NavBar({ userName }: { userName: string }) {
 
       {/* Bottom tab bar (mobile) */}
       <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-slate-200 bg-white md:hidden">
-        <div className="mx-auto grid max-w-5xl grid-cols-5">
-          {LINKS.filter((l) => ['/', '/nuovo', '/promemoria', '/spese', '/impostazioni'].includes(l.href)).map((l) => (
+        <div className="mx-auto grid max-w-5xl grid-cols-6">
+          {LINKS.filter((l) => ['/', '/calendario', '/nuovo', '/promemoria', '/spese', '/impostazioni'].includes(l.href)).map((l) => (
             <Link
               key={l.href}
               href={l.href}

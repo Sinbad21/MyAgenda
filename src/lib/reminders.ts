@@ -94,12 +94,12 @@ export async function completeReminder(userId: string, reminderId: string, note?
       await db
         .prepare(
           `INSERT INTO reminders
-            (id, user_id, log_id, category_id, title, trigger_type, due_date, due_km,
+            (id, user_id, log_id, category_id, title, trigger_type, due_date, due_time, due_km,
              vehicle_id, interval_months, recurring, advance_days, status, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'pending', ?)`
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'pending', ?)`
         )
         .bind(nid, userId, logId, reminder.category_id, reminder.title, reminder.trigger_type,
-              nextDueDate, nextDueKm, reminder.vehicle_id, reminder.interval_months,
+              nextDueDate, reminder.due_time, nextDueKm, reminder.vehicle_id, reminder.interval_months,
               reminder.advance_days, nowIso())
         .run();
       nextReminder = await db.prepare('SELECT * FROM reminders WHERE id = ?').bind(nid).first<Reminder>() ?? null;
@@ -123,16 +123,17 @@ export async function snoozeReminder(userId: string, reminderId: string, days: n
 
 export async function updateReminder(
   userId: string, reminderId: string,
-  patch: Partial<Pick<Reminder, 'title' | 'due_date' | 'due_km' | 'advance_days' | 'recurring'>>
+  patch: Partial<Pick<Reminder, 'title' | 'due_date' | 'due_time' | 'due_km' | 'advance_days' | 'recurring'>>
 ): Promise<Reminder> {
   const db = getDb();
   const reminder = await db.prepare('SELECT * FROM reminders WHERE id = ? AND user_id = ?').bind(reminderId, userId).first<Reminder>();
   if (!reminder) throw new Error('Reminder non trovato');
   await db
-    .prepare(`UPDATE reminders SET title = ?, due_date = ?, due_km = ?, advance_days = ?, recurring = ? WHERE id = ?`)
+    .prepare(`UPDATE reminders SET title = ?, due_date = ?, due_time = ?, due_km = ?, advance_days = ?, recurring = ? WHERE id = ?`)
     .bind(
       patch.title ?? reminder.title,
       patch.due_date !== undefined ? patch.due_date : reminder.due_date,
+      patch.due_time !== undefined ? patch.due_time : reminder.due_time,
       patch.due_km !== undefined ? patch.due_km : reminder.due_km,
       patch.advance_days ?? reminder.advance_days,
       patch.recurring !== undefined ? (patch.recurring ? 1 : 0) : reminder.recurring,

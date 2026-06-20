@@ -14,6 +14,7 @@ const actionSchema = z.object({
     .object({
       title: z.string().max(120).optional(),
       due_date: z.string().nullable().optional(),
+      due_time: z.string().nullable().optional(),
       due_km: z.number().int().positive().nullable().optional(),
       advance_days: z.number().int().min(0).max(365).optional(),
       recurring: z.boolean().optional(),

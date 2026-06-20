@@ -156,6 +156,21 @@ export function ruleBasedParse(text: string, _ctx: PromptContext): ParsedResult 
   const t = normalize(text);
   const actions: ChatAction[] = [];
 
+  // 0) Conferme ("sì", "ok"...): il record è già stato creato nel turno precedente.
+  if (isConfirmation(t)) {
+    return { reply: 'Perfetto, è tutto registrato. 👍', needs_clarification: false, actions: [], source: 'rules' };
+  }
+  // 0b) Correzioni / segnalazioni di errore: non creare nuovi record.
+  if (isComplaint(t)) {
+    return {
+      reply:
+        'Ok, non aggiungo nulla. Se c\'è un promemoria sbagliato o doppione puoi eliminarlo dalla pagina Promemoria con "elimina". Dimmi pure cosa vuoi correggere.',
+      needs_clarification: false,
+      actions: [],
+      source: 'rules',
+    };
+  }
+
   // 1) Aggiornamento km: "ho fatto 145000 km", "chilometraggio 145000"
   const kmMatch = t.match(/(\d{4,7})\s*km|km\s*(\d{4,7})|chilometragg\w*\s*(?:a|di)?\s*(\d{4,7})/);
   if (kmMatch && /(km|chilometr)/.test(t) && /(aggiorn|ora sono|attual|segna|fatto)/.test(t)) {
@@ -168,9 +183,9 @@ export function ruleBasedParse(text: string, _ctx: PromptContext): ParsedResult 
   const isExpense = /(spes|comprat|pagat|costato|€|euro)/.test(t);
   const amount = parseAmount(text);
 
-  // 3) Appuntamento futuro: "domani/lunedì... ho/visita/appuntamento"
+  // 3) Data e orario
   const date = relativeDate(t);
-  const isAppointment = /(appuntamento|visita|ho il|ho la|dentista|medico|controllo)/.test(t) && !!date && date > todayIso();
+  const timeMatch = parseTimeRaw(text);
 
   // 4) Manutenzione veicolo: tagliando/olio/revisione...
   const isVehicleMaint = /(tagliando|cambio olio|revision|pastiglie|gomme|pneumatic|filtro)/.test(t);
@@ -200,10 +215,31 @@ export function ruleBasedParse(text: string, _ctx: PromptContext): ParsedResult 
     };
   }
 
-  if (isAppointment && date) {
-    const title = capitalize(cleanAppointmentTitle(extractTitle(text)) || 'Appuntamento');
-    actions.push({ type: 'reminder', title, date, interval_months: null, recurring: false });
-    return { reply: `Promemoria creato: ${title} il ${date}.`, needs_clarification: false, actions, source: 'rules' };
+  // 5) Promemoria / appuntamento: parole chiave OPPURE un orario riconosciuto.
+  const isReminderLike =
+    /(appuntamento|visita|ricordami|ricorda|promemoria|chiama|telefona|riunione|dentista|medico|controllo|estetista|parrucchiere|fisioterapia|palestra)/.test(
+      t
+    ) || !!timeMatch;
+  if (isReminderLike && !isExpense) {
+    const when = date || todayIso();
+    let raw = extractTitle(text);
+    if (timeMatch) raw = raw.replace(timeMatch.raw, ' ');
+    const title = capitalize(cleanAppointmentTitle(raw) || 'Promemoria');
+    actions.push({
+      type: 'reminder',
+      title,
+      date: when,
+      time: timeMatch?.time,
+      interval_months: null,
+      recurring: false,
+    });
+    const oraTxt = timeMatch ? ` alle ${timeMatch.time}` : '';
+    return {
+      reply: `Promemoria creato: ${title} il ${when}${oraTxt}.`,
+      needs_clarification: false,
+      actions,
+      source: 'rules',
+    };
   }
 
   if (isExpense) {
@@ -239,13 +275,45 @@ function extractTitle(text: string): string {
 
 function cleanAppointmentTitle(s: string): string {
   return s
+    .replace(/^\s*(ricordami( di| che)?|ricorda( di)?|promemoria( per| di)?|appuntamento( per| di| dal| dallo| dalla)?)\b/i, '')
     .replace(/^\s*(oggi|domani|dopodomani|luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica)\b/i, '')
     .replace(/^\s*(ho|c'?ho|c'?[eè])\s+(un|una|il|lo|la|l'|gli|i)\s*/i, '')
-    .replace(/\balle?\s*\d{1,2}([:.]\d{2})?\b.*/i, '')
+    .replace(/\b(alle|ore|h)\s*\d{1,2}([:.\s]\d{2})?\b/gi, '')
+    .replace(/\b\d{1,2}[:.\s]\d{2}\b/g, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
 function capitalize(s: string): string {
   s = s.trim();
   return s.length ? s[0].toUpperCase() + s.slice(1) : s;
+}
+
+/** Riconosce conferme tipo "sì", "ok", "va bene", "grazie". */
+function isConfirmation(t: string): boolean {
+  const c = t.replace(/[!.,?👍🙏\s]+/g, ' ').trim();
+  return [
+    'si', 'ok', 'okay', 'va bene', 'perfetto', 'confermo', 'conferma', 'grazie',
+    'yes', 'esatto', 'certo', 'si grazie', 'ok grazie', 'ottimo', 'bene', 'giusto',
+  ].includes(c);
+}
+
+/** Riconosce segnalazioni di errore / duplicati / richieste di cancellazione. */
+function isComplaint(t: string): boolean {
+  return /(due volte|2 volte|doppio|doppione|duplicat|sbagliat|errat|non era|non e giusto|non è giusto|cancell|elimin|annull|rimuov|togli|hai creato)/.test(
+    t
+  );
+}
+
+/** Estrae un orario "HH:MM" da testo: "alle 15:45", "ore 9", "15.45", "15 45". */
+function parseTimeRaw(text: string): { time: string; raw: string } | null {
+  const m =
+    text.match(/\b(?:alle|ore|h)\s*(\d{1,2})(?:[:.\s](\d{2}))?\b/i) ||
+    text.match(/\b(\d{1,2})[:.](\d{2})\b/) ||
+    text.match(/\b(\d{1,2})\s+(\d{2})\b/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const min = m[2] ? parseInt(m[2], 10) : 0;
+  if (h > 23 || min > 59) return null;
+  return { time: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`, raw: m[0] };
 }
