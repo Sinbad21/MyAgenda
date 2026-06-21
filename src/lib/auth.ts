@@ -45,6 +45,34 @@ export async function clearSessionCookie(): Promise<void> {
   jar.delete(COOKIE_NAME);
 }
 
+/**
+ * Restituisce nome/valore/opzioni del cookie di sessione, per impostarlo
+ * direttamente su una Response (es. redirect del callback OAuth).
+ */
+export async function getSessionCookie(userId: string): Promise<{
+  name: string;
+  value: string;
+  options: {
+    httpOnly: true;
+    secure: boolean;
+    sameSite: 'lax';
+    path: string;
+    maxAge: number;
+  };
+}> {
+  return {
+    name: COOKIE_NAME,
+    value: await createSessionToken(userId),
+    options: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: SESSION_DAYS * 24 * 60 * 60,
+    },
+  };
+}
+
 export async function getSessionUserId(): Promise<string | null> {
   const jar = await cookies();
   const token = jar.get(COOKIE_NAME)?.value;

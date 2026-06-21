@@ -78,11 +78,30 @@ Vedi `.env.example` per l'elenco completo.
 | Variabile | Descrizione |
 |---|---|
 | `AUTH_SECRET` | Segreto per firmare i JWT di sessione (**obbligatorio**) |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Login con Google (opzionale → senza, il pulsante non compare) |
 | `ANTHROPIC_API_KEY` | Chiave Claude per la chat AI (opzionale → fallback a regole) |
 | `ANTHROPIC_MODEL` | Modello Claude (default `claude-opus-4-8`) |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | Invio email (senza → email simulate nei log) |
 | `CRON_SECRET` | Protegge l'endpoint `/api/cron` |
+
+### 🔑 Login con Google
+
+1. **Google Cloud Console** → *API e servizi → Credenziali → Crea credenziali → ID client OAuth → Applicazione web*.
+2. Aggiungi gli **URI di reindirizzamento autorizzati**:
+   - `http://localhost:3000/api/auth/google/callback` (sviluppo)
+   - `https://<tuo-dominio>/api/auth/google/callback` (produzione)
+3. Imposta `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET`:
+   - locale: in `.dev.vars` (per `wrangler pages dev`) o `.env` (per `next dev`);
+   - produzione: nelle variabili d'ambiente del progetto **Cloudflare Pages**.
+4. Applica la migration che aggiunge la colonna `google_id`:
+   ```bash
+   npx wrangler d1 execute myagenda-db --remote --file=migrations/0004_add_google_oauth.sql
+   # in locale aggiungi --local
+   ```
+
+Il flusso è *Authorization Code*: gli account vengono collegati per **email** (se esiste già
+un utente con quella email, l'accesso Google lo riusa). Gli utenti Google non hanno password.
 
 ---
 
