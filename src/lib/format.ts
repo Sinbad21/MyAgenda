@@ -41,6 +41,58 @@ export function daysUntil(iso: string | null | undefined): number | null {
   }
 }
 
+/** Fuso orario dell'app usato per i calcoli degli orari dei promemoria (default Europe/Rome). */
+export function appTimezone(): string {
+  return process.env.APP_TIMEZONE || 'Europe/Rome';
+}
+
+/** Offset (in ms) del fuso `tz` rispetto a UTC nell'istante `date`. */
+export function tzOffsetMs(date: Date, tz: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const map: Record<string, number> = {};
+  for (const p of dtf.formatToParts(date)) {
+    if (p.type !== 'literal') map[p.type] = Number(p.value);
+  }
+  const asUtc = Date.UTC(map.year, map.month - 1, map.day, map.hour, map.minute, map.second);
+  return asUtc - date.getTime();
+}
+
+/** Converte un orario "da parete" (data + ora locale nel fuso `tz`) nell'istante UTC corrispondente. */
+export function zonedWallTimeToUtc(dateStr: string, timeStr: string, tz: string): Date {
+  const [y, mo, d] = dateStr.slice(0, 10).split('-').map(Number);
+  const [h, mi] = timeStr.split(':').map(Number);
+  const naiveUtc = Date.UTC(y, mo - 1, d, h || 0, mi || 0, 0);
+  // Correzione con l'offset del fuso in quell'istante (preciso salvo l'ora di transizione DST).
+  const offset = tzOffsetMs(new Date(naiveUtc), tz);
+  return new Date(naiveUtc - offset);
+}
+
+/** Ora locale (0-23), minuti e data YYYY-MM-DD nel fuso `tz` per l'istante `now`. */
+export function nowInTz(now: Date, tz: string): { hour: number; minute: number; dateStr: string } {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  });
+  const map: Record<string, string> = {};
+  for (const p of dtf.formatToParts(now)) {
+    if (p.type !== 'literal') map[p.type] = p.value;
+  }
+  return { hour: Number(map.hour), minute: Number(map.minute), dateStr: `${map.year}-${map.month}-${map.day}` };
+}
+
+/** Minuti mancanti all'appuntamento (negativi se già passato), nel fuso `tz`. */
+export function minutesUntilAppointment(dateStr: string, timeStr: string, now: Date, tz = appTimezone()): number {
+  const appt = zonedWallTimeToUtc(dateStr, timeStr, tz);
+  return (appt.getTime() - now.getTime()) / 60000;
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('it-IT', {
     style: 'currency',

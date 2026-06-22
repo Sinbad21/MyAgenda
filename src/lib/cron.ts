@@ -1,10 +1,15 @@
 import { getDb, nowIso } from './db';
 import { isDue, isUpcoming } from './reminders';
 import { addInAppNotification, sendEmail, sendPushToUser } from './notifications';
-import { formatDateIt, formatCurrency } from './format';
+import { formatDateIt, formatCurrency, appTimezone, nowInTz, minutesUntilAppointment } from './format';
 import { monthTotal, categoryTotals, processRecurringExpenses } from './expenses';
 import { listExpenseCategories, EXPENSE_CATEGORY_ICONS } from './categories';
 import type { Reminder, User } from './types';
+
+function envInt(name: string, fallback: number): number {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) ? v : fallback;
+}
 
 export async function processDueReminders(): Promise<{ processed: number }> {
   const db = getDb();
@@ -16,30 +21,53 @@ export async function processDueReminders(): Promise<{ processed: number }> {
     )
     .all<Reminder>();
 
+  const now = new Date();
+  const tz = appTimezone();
+  const local = nowInTz(now, tz);
+  const leadMin = envInt('REMINDER_LEAD_MINUTES', 0);   // minuti di anticipo sull'orario dell'appuntamento
+  const graceMin = envInt('REMINDER_GRACE_MINUTES', 120); // tolleranza dopo l'orario (cron in ritardo)
+  const morningHour = envInt('REMINDER_MORNING_HOUR', 8); // ora dei promemoria "a giornata"
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const reminderUrl = `${appUrl}/promemoria`;
+  const ctaHtml = `<p style="margin-top:16px"><a href="${reminderUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Apri MyAgenda →</a></p>`;
+
   let processed = 0;
   for (const r of reminders) {
-    const due = await isDue(r);
-    const upcoming = isUpcoming(r);
-    if (!due && !upcoming) continue;
+    let title: string | null = null;
+    let body = '';
+    let emailHtml = '';
+
+    if (r.due_date && r.due_time) {
+      // ── Appuntamento con orario preciso → notifica all'ora esatta (± finestra) ──
+      if (r.notified_at) continue; // già avvisato per questo appuntamento
+      const mins = minutesUntilAppointment(r.due_date, r.due_time, now, tz);
+      if (mins > leadMin || mins < -graceMin) continue; // non è ancora ora, oppure troppo tardi
+      const when = mins <= 1 ? 'è adesso' : mins < 60 ? `tra ${Math.round(mins)} min` : `oggi alle ${r.due_time}`;
+      title = `⏰ ${r.title}`;
+      body = `Il tuo appuntamento ${when} (${r.due_time}).`;
+      emailHtml = `<h2>⏰ ${r.title}</h2><p>${body}</p>${ctaHtml}`;
+    } else {
+      // ── Promemoria a giornata / km → comportamento storico, ma solo dal mattino ──
+      const due = await isDue(r);
+      const upcoming = isUpcoming(r);
+      if (!due && !upcoming) continue;
+      if (local.hour < morningHour) continue; // niente avvisi notturni col cron ad alta frequenza
+      if (due) {
+        title = `✅ Hai completato "${r.title}"?`;
+        body = r.due_date
+          ? `Era in scadenza il ${formatDateIt(r.due_date)}. Segnalo come fatto se l'hai già completato.`
+          : "Era in scadenza. Segnalo come fatto se l'hai già completato.";
+        emailHtml = `<h2>✅ Hai completato "${r.title}"?</h2><p>${body}</p>${ctaHtml}`;
+      } else {
+        title = `🔔 Promemoria in scadenza: ${r.title}`;
+        body = r.due_date ? `Scade il ${formatDateIt(r.due_date)}.` : 'Controlla la tua agenda MyAgenda.';
+        emailHtml = `<h2>${title}</h2><p>${body}</p>`;
+      }
+    }
 
     const user = await db.prepare('SELECT * FROM users WHERE id = ?').bind(r.user_id).first<User>();
     if (!user) continue;
-
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    const reminderUrl = `${appUrl}/promemoria`;
-
-    let title: string, body: string, emailHtml: string;
-    if (due) {
-      title = `✅ Hai completato "${r.title}"?`;
-      body = r.due_date
-        ? `Era in scadenza il ${formatDateIt(r.due_date)}. Segnalo come fatto se l'hai già completato.`
-        : "Era in scadenza. Segnalo come fatto se l'hai già completato.";
-      emailHtml = `<h2>✅ Hai completato "${r.title}"?</h2><p>${body}</p><p style="margin-top:16px"><a href="${reminderUrl}" style="background:#2563eb;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Vai ai Promemoria →</a></p>`;
-    } else {
-      title = `🔔 Promemoria in scadenza: ${r.title}`;
-      body = r.due_date ? `Scade il ${formatDateIt(r.due_date)}.` : 'Controlla la tua agenda MyAgenda.';
-      emailHtml = `<h2>${title}</h2><p>${body}</p>`;
-    }
 
     await addInAppNotification(user.id, title, body, 'inapp', r.id);
     if (user.push_notifications) await sendPushToUser(user.id, { title, body, url: reminderUrl });

@@ -66,8 +66,20 @@ npm run dev
 npm run cron          # processa i reminder scaduti/in scadenza e invia le notifiche
 ```
 
-In produzione su Vercel il file `vercel.json` schedula `/api/cron` ogni giorno alle 8:00
-(protetto da `CRON_SECRET`).
+L'endpoint `/api/cron` (protetto da `CRON_SECRET`) processa i promemoria:
+
+- **Appuntamenti con orario** (`due_time`) → notifica **all'ora esatta** (finestra
+  configurabile con `REMINDER_LEAD_MINUTES` / `REMINDER_GRACE_MINUTES`, fuso
+  `APP_TIMEZONE`, default `Europe/Rome`).
+- **Promemoria a giornata / km** → notifica dal mattino (`REMINDER_MORNING_HOUR`).
+
+Per scattare all'ora giusta il cron deve girare **ogni minuto**:
+
+- **Cloudflare Pages** non ha cron trigger → usa il Worker schedulato in
+  [`workers/reminder-cron/`](workers/reminder-cron/README.md) (ogni minuto chiama
+  `/api/cron`).
+- **Vercel**: `vercel.json` schedula `/api/cron` (di default una volta al giorno;
+  alza la frequenza per le notifiche orarie).
 
 ---
 
@@ -84,6 +96,9 @@ Vedi `.env.example` per l'elenco completo.
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push |
 | `SMTP_HOST` / `SMTP_USER` / `SMTP_PASS` | Invio email (senza → email simulate nei log) |
 | `CRON_SECRET` | Protegge l'endpoint `/api/cron` |
+| `APP_TIMEZONE` | Fuso per gli orari dei promemoria (default `Europe/Rome`) |
+| `REMINDER_LEAD_MINUTES` / `REMINDER_GRACE_MINUTES` | Anticipo / tolleranza notifica appuntamenti |
+| `NEXT_PUBLIC_APP_URL` | URL pubblico usato nei link di notifiche ed email |
 
 ### 🔑 Login con Google
 

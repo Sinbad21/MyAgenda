@@ -1,0 +1,13 @@
+name = "myagenda-reminder-cron"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+# Esegue ogni minuto e chiama l'endpoint /api/cron dell'app MyAgenda.
+# (Cloudflare Pages non supporta i cron trigger: serve questo Worker separato.)
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# URL completo dell'endpoint cron dell'app: SOSTITUISCI con il tuo dominio.
+CRON_URL = "https://CAMBIA-ME.pages.dev/api/cron"
+# CRON_SECRET NON va qui: impostalo come secret →  wrangler secret put CRON_SECRET

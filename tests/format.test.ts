@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { daysUntil, formatDateIt, formatCurrency, relativeDue, addMonthsIso, todayIso } from '../src/lib/format';
+import {
+  daysUntil, formatDateIt, formatCurrency, relativeDue, addMonthsIso, todayIso,
+  zonedWallTimeToUtc, minutesUntilAppointment,
+} from '../src/lib/format';
 
 describe('daysUntil', () => {
   it('returns 0 for today', () => {
@@ -48,6 +51,31 @@ describe('relativeDue', () => {
 
   it('returns empty string for null', () => {
     expect(relativeDue(null)).toBe('');
+  });
+});
+
+describe('zonedWallTimeToUtc (Europe/Rome)', () => {
+  it('converte l\'ora invernale (UTC+1)', () => {
+    // 10:00 a Roma in gennaio = 09:00 UTC
+    expect(zonedWallTimeToUtc('2024-01-15', '10:00', 'Europe/Rome').toISOString()).toBe('2024-01-15T09:00:00.000Z');
+  });
+
+  it('converte l\'ora legale (UTC+2)', () => {
+    // 10:00 a Roma in luglio = 08:00 UTC
+    expect(zonedWallTimeToUtc('2024-07-15', '10:00', 'Europe/Rome').toISOString()).toBe('2024-07-15T08:00:00.000Z');
+  });
+});
+
+describe('minutesUntilAppointment', () => {
+  it('è ~0 all\'ora esatta dell\'appuntamento', () => {
+    const now = new Date('2024-07-15T08:00:00.000Z'); // = 10:00 a Roma
+    expect(minutesUntilAppointment('2024-07-15', '10:00', now, 'Europe/Rome')).toBeCloseTo(0, 5);
+  });
+
+  it('è positivo prima e negativo dopo', () => {
+    const now = new Date('2024-07-15T08:00:00.000Z');
+    expect(minutesUntilAppointment('2024-07-15', '10:30', now, 'Europe/Rome')).toBeCloseTo(30, 5);
+    expect(minutesUntilAppointment('2024-07-15', '09:45', now, 'Europe/Rome')).toBeCloseTo(-15, 5);
   });
 });
 
